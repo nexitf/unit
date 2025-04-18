@@ -4,8 +4,8 @@ import (
 	"context"
 )
 
-// RunPlugin
-func (u *unit) RunPlugin(ctx context.Context) (err error) {
+// RunPlugins
+func (u *unit) RunPlugins(ctx context.Context) (err error) {
 	for _, plug := range u.plugins {
 		if err = plug.Run(ctx); err != nil {
 			return
@@ -14,8 +14,8 @@ func (u *unit) RunPlugin(ctx context.Context) (err error) {
 	return
 }
 
-// StopPlugin
-func (u *unit) StopPlugin(ctx context.Context) (err error) {
+// StopPlugins
+func (u *unit) StopPlugins(ctx context.Context) (err error) {
 	for _, plug := range u.plugins {
 		if err = plug.Stop(ctx); err != nil {
 			return

@@ -39,7 +39,7 @@ type Plugin interface {
 }
 
 var (
-	ErrOperatorAlreadyExist = errors.New("operator already exist")
+	ErrPluginAlreadyExist = errors.New("plugin already exist")
 )
 
 var (
@@ -62,7 +62,7 @@ func Register(plugin Plugin) (pluginID string) {
 	}
 	_, exist := plugins[pluginID]
 	if exist {
-		panic(ErrOperatorAlreadyExist)
+		panic(ErrPluginAlreadyExist)
 	}
 	plugins[pluginID] = plugin
 	return

@@ -2,7 +2,12 @@ package core
 
 import (
 	"context"
+	"os"
+	"os/signal"
 	"sync"
+	"sync/atomic"
+	"syscall"
+	"time"
 
 	"github.com/nexitf/unit/internal/core/plugin"
 )
@@ -12,16 +17,18 @@ var (
 	u unit
 )
 
-type Task interface {
-	Name() string
-	Run(ctx context.Context) (err error)
-	Stop(ctx context.Context) (err error)
-}
-
 type unit struct {
 	tasks     []Task                   // Tasks
 	externals map[string]Connector     // Dependent external resources
 	plugins   map[string]plugin.Plugin // Plugins
+
+	noReady    int32
+	delayReady time.Duration
+	cancelTask context.CancelFunc
+	taskExited chan error
+	err        error
+	finish     sync.WaitGroup
+	first      sync.WaitGroup
 }
 
 func init() {
@@ -31,6 +38,10 @@ func init() {
 
 // Init
 func (u *unit) Init(ctx context.Context) (err error) {
+	if u.delayReady <= 0 {
+		u.delayReady = time.Second
+	}
+	u.taskExited = make(chan error, 1)
 	// Load all plugins
 	u.plugins = plugin.LoadPlugins()
 	return
@@ -41,44 +52,36 @@ func (u *unit) Setup(task Task) {
 	u.tasks = append(u.tasks, task)
 }
 
-// RunTask
-func (u *unit) RunTask(ctx context.Context) (
-	first, finish *sync.WaitGroup, lastErrFunc func() error) {
-	var err error
-	// Get last error
-	lastErrFunc = func() error {
-		return err
-	}
-
-	first = &sync.WaitGroup{}
-	finish = &sync.WaitGroup{}
-
-	first.Add(1)
-	// Launch tasks
-	for _, task := range u.tasks {
-		finish.Add(1)
-		go func(task Task) {
-			runErr := task.Run(ctx)
-			if runErr != nil {
-				err = runErr
-			} else {
-				task.Stop(ctx)
-			}
-			first.Done()
-			finish.Done()
-		}(task)
-	}
-
-	return
-}
-
 // Setup
 func Setup(task Task) {
 	u.Setup(task)
 }
 
+// WaitForExit
+func (u *unit) WaitForExit(ctx context.Context) (err error) {
+
+	var (
+		procExited = make(chan os.Signal, 1)
+	)
+
+	// Register the signals to be monitored: interrupt (Ctrl+C) and termination
+	signal.Notify(procExited, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	// Cancel context
+	case <-ctx.Done():
+		return ctx.Err()
+	// Process exited
+	case <-procExited:
+		return ErrProcessExited
+	// All tasks exited
+	case err = <-u.taskExited:
+		return err
+	}
+}
+
 // Run
-func Run(ctx context.Context) (err error) {
+func (u *unit) Run(ctx context.Context) (err error) {
 	// No task
 	if len(u.tasks) <= 0 {
 		return
@@ -90,32 +93,35 @@ func Run(ctx context.Context) (err error) {
 	}
 
 	// Run plugin
-	if err = u.RunPlugin(ctx); err != nil {
+	if err = u.RunPlugins(ctx); err != nil {
 		return
 	}
-	defer u.StopPlugin(ctx)
+	defer u.StopPlugins(ctx)
 
 	// Load dependent external resources
 	if err = u.LoadExternal(ctx); err != nil {
 		return
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	ctx, u.cancelTask = context.WithCancel(ctx)
+	defer u.cancelTask()
 
 	// Run tasks
-	first, finish, lastErr := u.RunTask(ctx)
+	u.StartTasks(ctx)
 
-	first.Wait()
-	if err = lastErr(); err != nil {
-		cancel()
-	}
+	// Wait for a short period to verify
+	// that all tasks are ready
+	time.AfterFunc(u.delayReady, func() {
+		if atomic.LoadInt32(&u.noReady) == 0 {
+			u.ReadyTasks(ctx)
+		}
+	})
 
-	// Wait for all tasks to exit
-	finish.Wait()
-	if err != nil {
-		err = lastErr()
-	}
+	// Will be blocked until exit
+	return u.WaitForExit(ctx)
+}
 
-	return
+// Run
+func Run(ctx context.Context) (err error) {
+	return u.Run(ctx)
 }

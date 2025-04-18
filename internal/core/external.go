@@ -47,10 +47,15 @@ func BindExternal(varp plugin.Type, name string) {
 		panic(ErrVariableCanNotBeBound)
 	}
 
+	path := fmt.Sprintf("plugin://%s/%s", pluginID, name)
+	if _, ok := u.externals[path]; ok {
+		panic(ErrDuplicateExternalName)
+	}
+
 	// Bind the variable
 	updater := plug.NewUpdater()
 	updater.Bind(varp)
 
 	// Bind a new external resource with a new updater
-	u.externals[fmt.Sprintf("plugin://%s/%s", pluginID, name)] = Connector{pluginID: pluginID, name: name, updater: updater}
+	u.externals[path] = Connector{pluginID: pluginID, name: name, updater: updater}
 }
