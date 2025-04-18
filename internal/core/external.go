@@ -9,8 +9,8 @@ import (
 )
 
 type Connector struct {
-	pluginID string
 	name     string
+	pluginID string
 	updater  plugin.Updater
 }
 
@@ -19,16 +19,15 @@ func (u *unit) LoadExternal(ctx context.Context) (err error) {
 	if len(u.externals) <= 0 {
 		return
 	}
-	for id, connector := range u.externals {
-		plugin, exist := u.LoadPlugin(connector.pluginID)
+	for _, connector := range u.externals {
+		plug, exist := plugin.Load(connector.pluginID)
 		if !exist {
 			_ = exist
 		}
-		err = plugin.Watch(ctx, connector.name, connector.updater)
+		err = plug.Watch(ctx, connector.name, connector.updater)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Load: %s %s %s\n", id, plugin.Name(), connector.name)
 	}
 	return
 }
@@ -43,13 +42,13 @@ func BindExternal(varp plugin.Type, name string) {
 	// Plugin ID
 	pluginID := varp.PluginID()
 
-	plugin, exist := u.LoadPlugin(pluginID)
+	plug, exist := plugin.Load(pluginID)
 	if !exist {
 		panic(ErrVariableCanNotBeBound)
 	}
 
 	// Bind the variable
-	updater := plugin.NewUpdater()
+	updater := plug.NewUpdater()
 	updater.Bind(varp)
 
 	// Bind a new external resource with a new updater

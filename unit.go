@@ -8,16 +8,6 @@ import (
 
 type Task = core.Task
 
-// Name
-func Name() string {
-	return core.Name()
-}
-
-// Level
-func Level() int {
-	return core.Level()
-}
-
 // Setup
 func Setup(task Task) {
 	core.Setup(task)

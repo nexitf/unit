@@ -19,8 +19,6 @@ type Task interface {
 }
 
 type unit struct {
-	name      string                   // Name of unit
-	level     int                      // Level of unit
 	tasks     []Task                   // Tasks
 	externals map[string]Connector     // Dependent external resources
 	plugins   map[string]plugin.Plugin // Plugins
@@ -33,9 +31,7 @@ func init() {
 
 // Init
 func (u *unit) Init(ctx context.Context) (err error) {
-	u.name = "unit"
-	u.level = 0
-	// Load all plugin plugins
+	// Load all plugins
 	u.plugins = plugin.LoadPlugins()
 	return
 }
@@ -47,10 +43,10 @@ func (u *unit) Setup(task Task) {
 
 // RunTask
 func (u *unit) RunTask(ctx context.Context) (
-	first, finish *sync.WaitGroup, getLastErrFunc func() error) {
+	first, finish *sync.WaitGroup, lastErrFunc func() error) {
 	var err error
 	// Get last error
-	getLastErrFunc = func() error {
+	lastErrFunc = func() error {
 		return err
 	}
 
@@ -76,16 +72,6 @@ func (u *unit) RunTask(ctx context.Context) (
 	return
 }
 
-// Name returns unit name
-func Name() string {
-	return u.name
-}
-
-// Level returns unit level
-func Level() int {
-	return u.level
-}
-
 // Setup
 func Setup(task Task) {
 	u.Setup(task)
@@ -103,11 +89,11 @@ func Run(ctx context.Context) (err error) {
 		return
 	}
 
-	// // Run plugin
-	// if err = u.RunPlugin(ctx); err != nil {
-	// 	return
-	// }
-	// defer u.StopPlugin(ctx)
+	// Run plugin
+	if err = u.RunPlugin(ctx); err != nil {
+		return
+	}
+	defer u.StopPlugin(ctx)
 
 	// Load dependent external resources
 	if err = u.LoadExternal(ctx); err != nil {
@@ -118,17 +104,17 @@ func Run(ctx context.Context) (err error) {
 	defer cancel()
 
 	// Run tasks
-	first, finish, getLastErr := u.RunTask(ctx)
+	first, finish, lastErr := u.RunTask(ctx)
 
 	first.Wait()
-	if err = getLastErr(); err != nil {
+	if err = lastErr(); err != nil {
 		cancel()
 	}
 
 	// Wait for all tasks to exit
 	finish.Wait()
 	if err != nil {
-		err = getLastErr()
+		err = lastErr()
 	}
 
 	return

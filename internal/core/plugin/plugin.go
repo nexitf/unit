@@ -25,11 +25,11 @@ type Plugin interface {
 	// Name
 	Name() string
 
-	// // Run
-	// Run(ctx context.Context) (err error)
+	// Run
+	Run(ctx context.Context) (err error)
 
-	// // Stop
-	// Stop(ctx context.Context) (err error)
+	// Stop
+	Stop(ctx context.Context) (err error)
 
 	// Watch
 	Watch(ctx context.Context, name string, updater Updater) (err error)
@@ -65,6 +65,14 @@ func Register(plugin Plugin) (pluginID string) {
 		panic(ErrOperatorAlreadyExist)
 	}
 	plugins[pluginID] = plugin
+	return
+}
+
+// Load returns a plugin.
+func Load(pluginID string) (plug Plugin, exist bool) {
+	mutex.RLock()
+	defer mutex.RUnlock()
+	plug, exist = plugins[pluginID]
 	return
 }
 
