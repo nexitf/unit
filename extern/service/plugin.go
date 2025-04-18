@@ -4,18 +4,18 @@ import (
 	"context"
 
 	"github.com/nexitf/lamp"
-	"github.com/nexitf/unit/internal/core/plugin"
+	"github.com/nexitf/unit/extern/plugin"
 )
 
 var (
-	id string
+	id   string
+	plug *Plugin
 )
 
 func init() {
+	plug = &Plugin{updaters: make(map[string]*Updater)}
 	// Register plugin.
-	id = plugin.Register(
-		&Plugin{updaters: make(map[string]*Updater)},
-	)
+	id = plugin.Register(plug)
 }
 
 type Service interface {
@@ -63,9 +63,22 @@ func (plug *Plugin) Name() string {
 	return "NexITF service plugin"
 }
 
+// Init
+func (plug *Plugin) Init(cfg string) (close func() error, err error) {
+	plug.lc, err = lamp.NewClient(cfg)
+	if err == nil {
+		close = plug.lc.Close
+	}
+	return
+}
+
+// Init inits the plugin.
+func Init(cfg string) (close func() error, err error) {
+	return plug.Init(cfg)
+}
+
 // Run implements plugin.Plugin.
 func (plug *Plugin) Run(ctx context.Context) (err error) {
-	plug.lc, err = lamp.NewClient("etcd://127.0.0.1:2379/services")
 	return
 }
 
@@ -73,9 +86,6 @@ func (plug *Plugin) Run(ctx context.Context) (err error) {
 func (plug *Plugin) Stop(ctx context.Context) (err error) {
 	for _, up := range plug.updaters {
 		up.stop()
-	}
-	if plug.lc != nil {
-		_ = plug.lc.Close()
 	}
 	return
 }

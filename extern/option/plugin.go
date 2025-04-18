@@ -3,18 +3,18 @@ package option
 import (
 	"context"
 
-	"github.com/nexitf/unit/internal/core/plugin"
+	"github.com/nexitf/unit/extern/plugin"
 )
 
 var (
-	id string
+	id   string
+	plug *Plugin
 )
 
 func init() {
+	plug = &Plugin{updaters: make(map[string]*Updater)}
 	// Register plugin.
-	id = plugin.Register(
-		&Plugin{updaters: make(map[string]*Updater)},
-	)
+	id = plugin.Register(plug)
 }
 
 type Option interface {

@@ -25,11 +25,11 @@ type Plugin interface {
 	// Name
 	Name() string
 
-	// Run
-	Run(ctx context.Context) (err error)
+	// // Run
+	// Run(ctx context.Context) (err error)
 
-	// Stop
-	Stop(ctx context.Context) (err error)
+	// // Stop
+	// Stop(ctx context.Context) (err error)
 
 	// Watch
 	Watch(ctx context.Context, name string, updater Updater) (err error)

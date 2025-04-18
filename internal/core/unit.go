@@ -103,11 +103,11 @@ func Run(ctx context.Context) (err error) {
 		return
 	}
 
-	// Run plugin
-	if err = u.RunPlugin(ctx); err != nil {
-		return
-	}
-	defer u.StopPlugin(ctx)
+	// // Run plugin
+	// if err = u.RunPlugin(ctx); err != nil {
+	// 	return
+	// }
+	// defer u.StopPlugin(ctx)
 
 	// Load dependent external resources
 	if err = u.LoadExternal(ctx); err != nil {
