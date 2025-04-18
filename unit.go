@@ -6,11 +6,12 @@ import (
 	"github.com/nexitf/unit/internal/core"
 )
 
-type Task = core.Task
+type Routine = core.Routine
+type ReadyChecker = core.ReadyChecker
 
 // Setup
-func Setup(task Task) {
-	core.Setup(task)
+func Setup(routine Routine) {
+	core.Setup(routine)
 }
 
 // Run

@@ -18,43 +18,45 @@ var (
 )
 
 type unit struct {
-	tasks     []Task                   // Tasks
+	routines  []Routine                // Routines
 	externals map[string]Connector     // Dependent external resources
 	plugins   map[string]plugin.Plugin // Plugins
 
 	noReady    int32
 	delayReady time.Duration
-	cancelTask context.CancelFunc
-	taskExited chan error
+	cancelCtx  context.CancelFunc
+	unitExited chan error
 	err        error
 	finish     sync.WaitGroup
 	first      sync.WaitGroup
 }
 
 func init() {
-	u.tasks = make([]Task, 0)
+	u.routines = make([]Routine, 0)
 	u.externals = make(map[string]Connector)
 }
 
 // Init
 func (u *unit) Init(ctx context.Context) (err error) {
-	if u.delayReady <= 0 {
-		u.delayReady = time.Second
-	}
-	u.taskExited = make(chan error, 1)
+	u.unitExited = make(chan error, 1)
 	// Load all plugins
 	u.plugins = plugin.LoadPlugins()
 	return
 }
 
 // Setup
-func (u *unit) Setup(task Task) {
-	u.tasks = append(u.tasks, task)
+func (u *unit) Setup(routine Routine) {
+	u.routines = append(u.routines, routine)
+	// Init delay ready checker
+	_, ok := routine.(ReadyChecker)
+	if ok && u.delayReady <= 0 {
+		u.delayReady = time.Second
+	}
 }
 
 // Setup
-func Setup(task Task) {
-	u.Setup(task)
+func Setup(routine Routine) {
+	u.Setup(routine)
 }
 
 // WaitForExit
@@ -70,20 +72,23 @@ func (u *unit) WaitForExit(ctx context.Context) (err error) {
 	select {
 	// Cancel context
 	case <-ctx.Done():
+		if u.err != nil {
+			return u.err
+		}
 		return ctx.Err()
 	// Process exited
 	case <-procExited:
 		return ErrProcessExited
-	// All tasks exited
-	case err = <-u.taskExited:
+	// Unit exited
+	case err = <-u.unitExited:
 		return err
 	}
 }
 
 // Run
 func (u *unit) Run(ctx context.Context) (err error) {
-	// No task
-	if len(u.tasks) <= 0 {
+	// No routine
+	if len(u.routines) <= 0 {
 		return
 	}
 
@@ -103,19 +108,26 @@ func (u *unit) Run(ctx context.Context) (err error) {
 		return
 	}
 
-	ctx, u.cancelTask = context.WithCancel(ctx)
-	defer u.cancelTask()
+	ctx, u.cancelCtx = context.WithCancel(ctx)
+	defer u.cancelCtx()
 
-	// Run tasks
-	u.StartTasks(ctx)
+	// Run routines
+	u.StartRoutines(ctx)
 
-	// Wait for a short period to verify
-	// that all tasks are ready
-	time.AfterFunc(u.delayReady, func() {
+	readyFn := func() {
 		if atomic.LoadInt32(&u.noReady) == 0 {
-			u.ReadyTasks(ctx)
+			if u.err = u.ReadyRoutines(ctx); u.err != nil {
+				u.cancelCtx()
+			}
 		}
-	})
+	}
+	if u.delayReady > 0 {
+		// Wait for a short period to verify
+		// that all tasks are ready
+		time.AfterFunc(u.delayReady, readyFn)
+	} else {
+		readyFn()
+	}
 
 	// Will be blocked until exit
 	return u.WaitForExit(ctx)
