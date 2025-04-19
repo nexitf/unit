@@ -7,17 +7,21 @@ import (
 	"sync"
 )
 
-type Updater interface {
-	// Bind binds the plugin to the variable.
-	Bind(varp any)
-
-	// // Update updates the plugin with the given value.
-	// Update(value string) (err error)
+// Plugin resource-binding types must implement
+// the Variable interface.
+type Variable interface {
+	// PluginID returns the plugin ID.
+	PluginID() string
 }
 
-type Type interface {
-	// PluginID returns the plugin id.
-	PluginID() string
+type BindOption func(Variable) (used bool)
+
+type Updater interface {
+	// Bind binds the plugin to the variable.
+	Bind(varp any, opts ...BindOption)
+
+	// // Update updates the plugin with the given value.
+	// update(...) (err error)
 }
 
 type Plugin interface {
@@ -31,8 +35,8 @@ type Plugin interface {
 	// Stop
 	Stop(ctx context.Context) (err error)
 
-	// Watch
-	Watch(ctx context.Context, name string, updater Updater) (err error)
+	// Bind
+	Bind(ctx context.Context, name string, updater Updater) (err error)
 
 	// NewUpdater creates a new variable updater.
 	NewUpdater() (updater Updater)

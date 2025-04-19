@@ -2,16 +2,19 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	"github.com/nexitf/unit/internal/core/plugin"
+	"github.com/thecxx/runpoint"
 )
 
 type Connector struct {
-	name     string
-	pluginID string
-	updater  plugin.Updater
+	name    string
+	type_   string
+	updater plugin.Updater // [variable pointer] <- [updater] <- [plugin]
+	plugin  plugin.Plugin
+	comment string
+	pc      *runpoint.PCounter
 }
 
 // LoadExternal
@@ -19,12 +22,9 @@ func (u *unit) LoadExternal(ctx context.Context) (err error) {
 	if len(u.externals) <= 0 {
 		return
 	}
+	// Associate external dependency names with the corresponding plugins
 	for _, connector := range u.externals {
-		plug, exist := plugin.Load(connector.pluginID)
-		if !exist {
-			_ = exist
-		}
-		err = plug.Watch(ctx, connector.name, connector.updater)
+		err = connector.plugin.Bind(ctx, connector.name, connector.updater)
 		if err != nil {
 			return err
 		}
@@ -33,7 +33,7 @@ func (u *unit) LoadExternal(ctx context.Context) (err error) {
 }
 
 // BindExternal
-func BindExternal(varp plugin.Type, name string) {
+func (u *unit) BindExternal(varp plugin.Variable, name, comment string, pc *runpoint.PCounter, opts ...plugin.BindOption) {
 	refVal := reflect.ValueOf(varp)
 	if refVal.Kind() != reflect.Ptr || refVal.IsNil() {
 		panic(ErrInvalidVariablePointer)
@@ -47,15 +47,29 @@ func BindExternal(varp plugin.Type, name string) {
 		panic(ErrVariableCanNotBeBound)
 	}
 
-	path := fmt.Sprintf("plugin://%s/%s", pluginID, name)
+	path := "plugin://" + pluginID + "/" + name
 	if _, ok := u.externals[path]; ok {
 		panic(ErrDuplicateExternalName)
 	}
 
 	// Bind the variable
 	updater := plug.NewUpdater()
-	updater.Bind(varp)
+	updater.Bind(varp, opts...)
+
+	refType := reflect.TypeOf(varp).Elem()
 
 	// Bind a new external resource with a new updater
-	u.externals[path] = Connector{pluginID: pluginID, name: name, updater: updater}
+	u.externals[path] = Connector{
+		name:    name,
+		updater: updater,
+		plugin:  plug,
+		comment: comment,
+		type_:   refType.PkgPath() + "." + refType.Name(),
+		pc:      pc,
+	}
+}
+
+// BindExternal
+func BindExternal(varp plugin.Variable, name, comment string, pc *runpoint.PCounter, opts ...plugin.BindOption) {
+	u.BindExternal(varp, name, comment, pc, opts...)
 }

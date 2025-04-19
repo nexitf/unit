@@ -5,8 +5,9 @@ import (
 )
 
 type Plugin = plugin.Plugin
+type Variable = plugin.Variable
+type BindOption = plugin.BindOption
 type Updater = plugin.Updater
-type Type = plugin.Type
 
 // Register register a plugin.
 func Register(plug Plugin) (pluginID string) {

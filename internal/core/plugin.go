@@ -6,6 +6,9 @@ import (
 
 // RunPlugins
 func (u *unit) RunPlugins(ctx context.Context) (err error) {
+	if len(u.plugins) <= 0 {
+		return
+	}
 	for _, plug := range u.plugins {
 		if err = plug.Run(ctx); err != nil {
 			return
@@ -16,6 +19,9 @@ func (u *unit) RunPlugins(ctx context.Context) (err error) {
 
 // StopPlugins
 func (u *unit) StopPlugins(ctx context.Context) (err error) {
+	if len(u.plugins) <= 0 {
+		return
+	}
 	for _, plug := range u.plugins {
 		if err = plug.Stop(ctx); err != nil {
 			return

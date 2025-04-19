@@ -31,8 +31,8 @@ type Routine struct {
 func NewRoutine(addr string, opts ...RoutineOption) (r *Routine) {
 	r = &Routine{addr: addr}
 	// Set options
-	for _, setOption := range opts {
-		setOption(r)
+	for _, setOpt := range opts {
+		setOpt(r)
 	}
 	// Option: addr
 	if r.addr == "" {
@@ -52,7 +52,7 @@ func NewRoutine(addr string, opts ...RoutineOption) (r *Routine) {
 
 // Name implements core.Routine.
 func (r *Routine) Name() string {
-	return "NexITF http server routine"
+	return "NexITF http server"
 }
 
 // Run implements core.Routine.
