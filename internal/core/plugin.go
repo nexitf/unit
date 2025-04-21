@@ -5,7 +5,7 @@ import (
 )
 
 // RunPlugins
-func (u *unit) RunPlugins(ctx context.Context) (err error) {
+func (u *Unit) RunPlugins(ctx context.Context) (err error) {
 	if len(u.plugins) <= 0 {
 		return
 	}
@@ -18,7 +18,7 @@ func (u *unit) RunPlugins(ctx context.Context) (err error) {
 }
 
 // StopPlugins
-func (u *unit) StopPlugins(ctx context.Context) (err error) {
+func (u *Unit) StopPlugins(ctx context.Context) (err error) {
 	if len(u.plugins) <= 0 {
 		return
 	}

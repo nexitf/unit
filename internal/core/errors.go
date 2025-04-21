@@ -10,4 +10,5 @@ var (
 	ErrVariableCanNotBeBound  = errors.New("variable cannot be bound")
 	ErrProcessExited          = errors.New("process exited")
 	ErrPluginNotFound         = errors.New("plugin not found")
+	ErrAlreadyRunning         = errors.New("unit already running")
 )

@@ -2,39 +2,95 @@ package core
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type Routine interface {
+	// Name returns the name of the routine.
 	Name() string
+
+	// Run Usually, Run is the entry point of a routine.
+	// A running routine is expected to block inside Run.
 	Run(ctx context.Context) (err error)
+
+	// Stop method will be called once when the routine exits.
 	Stop(ctx context.Context) (err error)
 }
 
-type ReadyChecker interface {
+type Launcher struct {
+	routine  Routine
+	err      error
+	runTime  time.Time
+	stopTime time.Time
+}
+
+// Name implements Routine.
+func (l *Launcher) Name() string {
+	return l.routine.Name()
+}
+
+// Run implements Routine.
+func (l *Launcher) Run(ctx context.Context) (err error) {
+	defer func() {
+		if l.err == nil {
+			l.err = err
+		}
+		l.stopTime = time.Now()
+	}()
+	l.runTime = time.Now()
+	return l.routine.Run(ctx)
+}
+
+// Stop implements Routine.
+func (l *Launcher) Stop(ctx context.Context) (err error) {
+	l.stopTime = time.Now()
+	return l.routine.Stop(ctx)
+}
+
+// Ready implements RoutineChecker.
+func (l *Launcher) Ready(ctx context.Context) (err error) {
+	rc, ok := l.routine.(RoutineChecker)
+	if !ok {
+		return nil
+	}
+	defer func() {
+		if l.err == nil {
+			l.err = err
+		}
+	}()
+	return rc.Ready(ctx)
+}
+
+type RoutineChecker interface {
 	Ready(ctx context.Context) (err error)
 }
 
 // StartRoutines
-func (u *unit) StartRoutines(ctx context.Context) {
+func (u *Unit) StartRoutines(ctx context.Context) {
 	var (
+		first   int32
 		started sync.WaitGroup
+		finish  sync.WaitGroup
 	)
 
-	u.first.Add(1)
 	// Launch tasks
 	for _, r := range u.routines {
 		started.Add(1)
-		u.finish.Add(1)
+		finish.Add(1)
 		go func(r Routine) {
 			started.Done()
-			u.err = r.Run(ctx)
-			if u.err == nil {
+			// Run routine
+			if err := r.Run(ctx); err == nil {
 				r.Stop(ctx)
+			} else {
+				u.Panic(err)
+				atomic.StoreInt32(&u.errored, 1)
 			}
-			u.first.Done()
-			u.finish.Done()
+			finish.Done()
+			atomic.StoreInt32(&first, 1)
 		}(r)
 	}
 
@@ -43,28 +99,35 @@ func (u *unit) StartRoutines(ctx context.Context) {
 
 	go func() {
 		// Will be blocked here
-		u.first.Wait()
-		if u.err != nil {
-			// Exit all tasks and stop sending readiness notifications
-			// when the first runtime error is encountered
-			atomic.StoreInt32(&u.noReady, 1)
+		for {
+			if atomic.LoadInt32(&first) == 1 {
+				break
+			} else {
+				runtime.Gosched()
+			}
+		}
+
+		if u.Errored() {
+			// Exit all routines
 			u.cancelCtx()
 		}
 
 		// Wait for all tasks to exit
-		u.finish.Wait()
-		u.unitExited <- u.err
+		finish.Wait()
+		close(u.unitExited)
 	}()
 }
 
 // ReadyRoutines
-func (u *unit) ReadyRoutines(ctx context.Context) (err error) {
+func (u *Unit) ReadyRoutines(ctx context.Context) (err error) {
 	for _, r := range u.routines {
-		health, ok := r.(ReadyChecker)
+		rc, ok := r.(RoutineChecker)
 		if !ok {
 			continue
 		}
-		if err = health.Ready(ctx); err != nil {
+		if err = rc.Ready(ctx); err != nil {
+			u.Panic(err)
+			atomic.StoreInt32(&u.errored, 1)
 			return
 		}
 	}

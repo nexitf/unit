@@ -52,6 +52,10 @@ func (s *Server) Run(ctx context.Context, addr string) (err error) {
 	if s.srv.Addr == "" {
 		s.srv.Addr = ":80"
 	}
+	go func() {
+		<-ctx.Done()
+		s.Stop(context.TODO())
+	}()
 	return s.srv.ListenAndServe()
 }
 

@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 
 	"github.com/nexitf/lamp"
-	"github.com/nexitf/unit/extern/plugin"
+	"github.com/nexitf/unit/plugin"
 )
 
 var (
@@ -19,8 +19,8 @@ var (
 
 // WithHTTPHost
 func WithHTTPHost(host string) plugin.BindOption {
-	return func(v plugin.Variable) (used bool) {
-		client, used := v.(*HTTPClient)
+	return func(varp plugin.Resource) (used bool) {
+		client, used := varp.(*HTTPClient)
 		if used {
 			client.host = host
 		}
@@ -84,6 +84,5 @@ func (client *HTTPClient) bind(opts ...plugin.BindOption) (unused []plugin.BindO
 // update
 func (client *HTTPClient) update(addrs []lamp.Address) (err error) {
 	client.addrs = addrs
-	fmt.Printf("addrs: %+v\n", addrs)
 	return
 }

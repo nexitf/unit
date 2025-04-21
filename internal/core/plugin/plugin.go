@@ -2,32 +2,49 @@ package plugin
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"sync"
+	"time"
+
+	"github.com/nexitf/unit/internal/core/utils"
 )
 
 // Plugin resource-binding types must implement
-// the Variable interface.
-type Variable interface {
+// the Resource interface.
+type Resource interface {
 	// PluginID returns the plugin ID.
 	PluginID() string
 }
 
-type BindOption func(Variable) (used bool)
+type Snapshot struct {
+	Time time.Time
+	Data string
+}
+
+type BindOption func(Resource) (used bool)
 
 type Updater interface {
 	// Bind binds the plugin to the variable.
-	Bind(varp any, opts ...BindOption)
+	Bind(varp Resource, opts ...BindOption)
 
-	// // Update updates the plugin with the given value.
-	// update(...) (err error)
+	// Snapshot returns the snapshot of the updater.
+	Snapshot() (snapshot Snapshot)
+}
+
+type About struct {
+	Name    string `json:"Name,omitempty"`
+	Version string `json:"Version,omitempty"`
+	Author  string `json:"Author,omitempty"`
+	Package string `json:"Package,omitempty"`
 }
 
 type Plugin interface {
 
 	// Name
 	Name() string
+
+	// About
+	About() (about About)
 
 	// Run
 	Run(ctx context.Context) (err error)
@@ -60,7 +77,7 @@ func Register(plugin Plugin) (pluginID string) {
 	mutex.Lock()
 	defer mutex.Unlock()
 	// Generate a random string as pluginID
-	pluginID, err := randomString(32)
+	pluginID, err := utils.RandomString(32)
 	if err != nil {
 		panic(err)
 	}
@@ -85,21 +102,4 @@ func LoadPlugins() map[string]Plugin {
 	mutex.RLock()
 	defer mutex.RUnlock()
 	return plugins
-}
-
-const (
-	charset = "abcdefghijklmnopqrstuvwxyz0123456789"
-)
-
-// randomString generates a random string of the given length.
-func randomString(length int) (string, error) {
-	b := make([]byte, length)
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", err
-	}
-	for i := 0; i < length; i++ {
-		b[i] = charset[int(b[i])%len(charset)]
-	}
-	return string(b), nil
 }

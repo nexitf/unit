@@ -5,7 +5,9 @@ import (
 )
 
 type Plugin = plugin.Plugin
-type Variable = plugin.Variable
+type About = plugin.About
+type Resource = plugin.Resource
+type Snapshot = plugin.Snapshot
 type BindOption = plugin.BindOption
 type Updater = plugin.Updater
 

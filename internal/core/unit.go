@@ -4,93 +4,121 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/nexitf/unit/internal/core/plugin"
+	"github.com/nexitf/unit/internal/core/utils"
 )
 
 var (
 	// Unit instance
-	u unit
+	u Unit
 )
 
-type unit struct {
-	routines  []Routine                // Routines
-	externals map[string]Connector     // Dependent external resources
-	plugins   map[string]plugin.Plugin // Plugins
-
-	noReady    int32
+type Unit struct {
+	routines   []Routine                // Routines
+	externals  map[string]Connector     // Dependent external resources
+	plugins    map[string]plugin.Plugin // Plugins
+	unitExited chan struct{}
+	procExited chan os.Signal
 	delayReady time.Duration
 	cancelCtx  context.CancelFunc
-	unitExited chan error
-	err        error
-	finish     sync.WaitGroup
-	first      sync.WaitGroup
+	fatal      error
+	running    int32 // Already running
+	errored    int32 // Error found
 }
 
 func init() {
 	u.routines = make([]Routine, 0)
 	u.externals = make(map[string]Connector)
+	u.unitExited = make(chan struct{})
+	u.procExited = make(chan os.Signal, 1)
 }
 
 // Init
-func (u *unit) Init(ctx context.Context) (err error) {
-	u.unitExited = make(chan error, 1)
+func (u *Unit) Init(ctx context.Context) (err error) {
+	if u.delayReady <= 0 {
+		u.delayReady = 50 * time.Millisecond
+	}
 	// Load all plugins
 	u.plugins = plugin.LoadPlugins()
 	return
 }
 
 // Setup
-func (u *unit) Setup(routine Routine) {
-	u.routines = append(u.routines, routine)
-	// Init delay ready checker
-	_, ok := routine.(ReadyChecker)
-	if ok && u.delayReady <= 0 {
-		u.delayReady = time.Second
-	}
+func (u *Unit) Setup(routine Routine) {
+	u.routines = append(u.routines, &Launcher{routine: routine})
 }
 
 // Setup
 func Setup(routine Routine) {
+	if u.IsRunning() {
+		panic(ErrAlreadyRunning)
+	}
 	u.Setup(routine)
 }
 
 // WaitForExit
-func (u *unit) WaitForExit(ctx context.Context) (err error) {
-
+func (u *Unit) WaitForExit(ctx context.Context) (err error) {
 	var (
-		procExited = make(chan os.Signal, 1)
+		ctxDone = ctx.Done()
+		timer   = utils.NewStoppedTimer()
 	)
 
-	// Register the signals to be monitored: interrupt (Ctrl+C) and termination
-	signal.Notify(procExited, syscall.SIGINT, syscall.SIGTERM)
+	defer timer.Stop()
 
-	select {
-	// Cancel context
-	case <-ctx.Done():
-		if u.err != nil {
-			return u.err
+	// Register the signals to be monitored: interrupt (Ctrl+C) and termination
+	signal.Notify(u.procExited, syscall.SIGINT, syscall.SIGTERM)
+
+	for {
+		select {
+		// Cancel context
+		case <-ctxDone:
+			timer.Reset(3 * time.Second)
+			ctxDone = nil
+		// Delay exited
+		case <-timer.C:
+			u.Panic(ctx.Err())
+			return u.Error()
+		// Process exited
+		case <-u.procExited:
+			u.Panic(ErrProcessExited)
+			u.cancelCtx()
+			timer.Reset(3 * time.Second)
+		// Unit exited
+		case <-u.unitExited:
+			return u.Error()
 		}
-		return ctx.Err()
-	// Process exited
-	case <-procExited:
-		return ErrProcessExited
-	// Unit exited
-	case err = <-u.unitExited:
-		return err
+	}
+}
+
+type RunOption func(*Unit)
+
+// WithDelayReady
+func WithDelayReady(d time.Duration) RunOption {
+	return func(u *Unit) {
+		if d > 0 {
+			u.delayReady = d
+		}
 	}
 }
 
 // Run
-func (u *unit) Run(ctx context.Context) (err error) {
+func (u *Unit) Run(ctx context.Context, opts ...RunOption) (err error) {
 	// No routine
 	if len(u.routines) <= 0 {
 		return
 	}
+
+	// Set options
+	for _, setOpt := range opts {
+		setOpt(u)
+	}
+
+	atomic.StoreInt32(&u.running, 1)
+	defer atomic.StoreInt32(&u.running, 0)
 
 	// Init unit
 	if err = u.Init(ctx); err != nil {
@@ -111,12 +139,12 @@ func (u *unit) Run(ctx context.Context) (err error) {
 	ctx, u.cancelCtx = context.WithCancel(ctx)
 	defer u.cancelCtx()
 
-	// Run routines
+	// Start routines
 	u.StartRoutines(ctx)
 
 	readyFn := func() {
-		if atomic.LoadInt32(&u.noReady) == 0 {
-			if u.err = u.ReadyRoutines(ctx); u.err != nil {
+		if !u.Errored() {
+			if err := u.ReadyRoutines(ctx); err != nil {
 				u.cancelCtx()
 			}
 		}
@@ -133,7 +161,24 @@ func (u *unit) Run(ctx context.Context) (err error) {
 	return u.WaitForExit(ctx)
 }
 
+// Panic
+func (u *Unit) Panic(err error) {
+	if u.fatal != nil {
+		return
+	}
+	u.fatal = err
+}
+
+// Error returns the first error
+// encountered during the unit's lifecycle.
+func (u *Unit) Error() (err error) {
+	return u.fatal
+}
+
 // Run
-func Run(ctx context.Context) (err error) {
-	return u.Run(ctx)
+func Run(ctx context.Context, opts ...RunOption) (err error) {
+	if u.IsRunning() {
+		panic(ErrAlreadyRunning)
+	}
+	return u.Run(ctx, opts...)
 }

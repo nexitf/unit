@@ -11,6 +11,7 @@ import (
 type Connector struct {
 	name    string
 	type_   string
+	varp    plugin.Resource
 	updater plugin.Updater // [variable pointer] <- [updater] <- [plugin]
 	plugin  plugin.Plugin
 	comment string
@@ -18,7 +19,7 @@ type Connector struct {
 }
 
 // LoadExternal
-func (u *unit) LoadExternal(ctx context.Context) (err error) {
+func (u *Unit) LoadExternal(ctx context.Context) (err error) {
 	if len(u.externals) <= 0 {
 		return
 	}
@@ -33,7 +34,7 @@ func (u *unit) LoadExternal(ctx context.Context) (err error) {
 }
 
 // BindExternal
-func (u *unit) BindExternal(varp plugin.Variable, name, comment string, pc *runpoint.PCounter, opts ...plugin.BindOption) {
+func (u *Unit) BindExternal(varp plugin.Resource, name, comment string, pc *runpoint.PCounter, opts ...plugin.BindOption) {
 	refVal := reflect.ValueOf(varp)
 	if refVal.Kind() != reflect.Ptr || refVal.IsNil() {
 		panic(ErrInvalidVariablePointer)
@@ -61,6 +62,7 @@ func (u *unit) BindExternal(varp plugin.Variable, name, comment string, pc *runp
 	// Bind a new external resource with a new updater
 	u.externals[path] = Connector{
 		name:    name,
+		varp:    varp,
 		updater: updater,
 		plugin:  plug,
 		comment: comment,
@@ -70,6 +72,6 @@ func (u *unit) BindExternal(varp plugin.Variable, name, comment string, pc *runp
 }
 
 // BindExternal
-func BindExternal(varp plugin.Variable, name, comment string, pc *runpoint.PCounter, opts ...plugin.BindOption) {
+func BindExternal(varp plugin.Resource, name, comment string, pc *runpoint.PCounter, opts ...plugin.BindOption) {
 	u.BindExternal(varp, name, comment, pc, opts...)
 }
