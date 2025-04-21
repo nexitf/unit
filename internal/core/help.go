@@ -12,10 +12,10 @@ const (
 )
 
 type RtRoutine struct {
-	Name     string `json:"Name"`
-	RunTime  int64  `json:"RunTime"`
-	StopTime int64  `json:"StopTime"`
-	Error    string `json:"Error"`
+	Name     string `json:"Name,omitempty"`
+	RunTime  int64  `json:"RunTime,omitempty"`
+	StopTime int64  `json:"StopTime,omitempty"`
+	Error    string `json:"Error,omitempty"`
 }
 
 type RtSnapshot struct {
@@ -24,19 +24,20 @@ type RtSnapshot struct {
 }
 
 type RtExternal struct {
-	Path     string     `json:"Path"`
-	Var      string     `json:"Var"`
-	Snapshot RtSnapshot `json:"Snapshot"`
-	Type     string     `json:"Type"`
-	Comment  string     `json:"Comment"`
-	Filename string     `json:"Filename"`
-	Line     int        `json:"Line"`
-	Package  string     `json:"Package"`
+	Path     string     `json:"Path,omitempty"`
+	Var      string     `json:"Var,omitempty"`
+	Snapshot RtSnapshot `json:"Snapshot,omitempty"`
+	Type     string     `json:"Type,omitempty"`
+	Comment  string     `json:"Comment,omitempty"`
+	Filename string     `json:"Filename,omitempty"`
+	Line     int        `json:"Line,omitempty"`
+	Package  string     `json:"Package,omitempty"`
 }
 
 type Runtime struct {
 	Version   string                  `json:"Version"`
-	Fatal     string                  `json:"Fatal"`
+	Fatal     string                  `json:"Fatal,omitempty"`
+	Running   bool                    `json:"Running"`
 	Routines  []RtRoutine             `json:"Routines"`
 	Externals []RtExternal            `json:"Externals"`
 	Plugins   map[string]plugin.About `json:"Plugins"`
@@ -50,6 +51,8 @@ func Inspect() (rt Runtime) {
 	if err := u.Fatal(); err != nil {
 		rt.Fatal = err.Error()
 	}
+	// Status
+	rt.Running = u.IsRunning()
 	// Routines
 	for _, r := range u.routines {
 		l := r.(*Launcher)

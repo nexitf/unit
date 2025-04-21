@@ -25,8 +25,8 @@ type Unit struct {
 	procExited chan os.Signal
 	delayReady time.Duration
 	cancelCtx  context.CancelFunc
-	fatal      error
 	running    int32 // Already running
+	fatal      error
 	errored    int32 // Error found
 }
 
@@ -76,11 +76,11 @@ func (u *Unit) WaitForExit(ctx context.Context) (err error) {
 		select {
 		// Cancel context
 		case <-ctxDone:
+			u.Panic(ctx.Err())
 			timer.Reset(3 * time.Second)
 			ctxDone = nil
 		// Delay exited
 		case <-timer.C:
-			u.Panic(ctx.Err())
 			return u.Fatal()
 		// Process exited
 		case <-u.procExited:
@@ -167,6 +167,7 @@ func (u *Unit) Panic(err error) {
 		return
 	}
 	u.fatal = err
+	atomic.StoreInt32(&u.errored, 1)
 }
 
 // Fatal returns the fatal error

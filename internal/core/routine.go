@@ -87,7 +87,6 @@ func (u *Unit) StartRoutines(ctx context.Context) {
 				r.Stop(ctx)
 			} else {
 				u.Panic(err)
-				atomic.StoreInt32(&u.errored, 1)
 			}
 			finish.Done()
 			atomic.StoreInt32(&first, 1)
@@ -127,7 +126,6 @@ func (u *Unit) ReadyRoutines(ctx context.Context) (err error) {
 		}
 		if err = rc.Ready(ctx); err != nil {
 			u.Panic(err)
-			atomic.StoreInt32(&u.errored, 1)
 			return
 		}
 	}
