@@ -81,7 +81,7 @@ func (u *Unit) WaitForExit(ctx context.Context) (err error) {
 		// Delay exited
 		case <-timer.C:
 			u.Panic(ctx.Err())
-			return u.Error()
+			return u.Fatal()
 		// Process exited
 		case <-u.procExited:
 			u.Panic(ErrProcessExited)
@@ -89,7 +89,7 @@ func (u *Unit) WaitForExit(ctx context.Context) (err error) {
 			timer.Reset(3 * time.Second)
 		// Unit exited
 		case <-u.unitExited:
-			return u.Error()
+			return u.Fatal()
 		}
 	}
 }
@@ -169,9 +169,9 @@ func (u *Unit) Panic(err error) {
 	u.fatal = err
 }
 
-// Error returns the first error
+// Fatal returns the fatal error
 // encountered during the unit's lifecycle.
-func (u *Unit) Error() (err error) {
+func (u *Unit) Fatal() (err error) {
 	return u.fatal
 }
 

@@ -36,7 +36,7 @@ type RtExternal struct {
 
 type Runtime struct {
 	Version   string                  `json:"Version"`
-	Error     string                  `json:"Error"`
+	Fatal     string                  `json:"Fatal"`
 	Routines  []RtRoutine             `json:"Routines"`
 	Externals []RtExternal            `json:"Externals"`
 	Plugins   map[string]plugin.About `json:"Plugins"`
@@ -47,8 +47,8 @@ func Inspect() (rt Runtime) {
 	// Version
 	rt.Version = Version
 	// Error
-	if err := u.Error(); err != nil {
-		rt.Error = err.Error()
+	if err := u.Fatal(); err != nil {
+		rt.Fatal = err.Error()
 	}
 	// Routines
 	for _, r := range u.routines {
