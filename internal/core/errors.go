@@ -1,7 +1,7 @@
 package core
 
 import (
-	"errors"
+	"github.com/nexitf/unit/internal/errors"
 )
 
 var (

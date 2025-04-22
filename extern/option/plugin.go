@@ -2,7 +2,7 @@ package option
 
 // import (
 // 	"context"
-// 	"errors"
+// 	"github.com/nexitf/unit/internal/errors"
 // 	"sync"
 
 // 	"github.com/nexitf/unit/extern/plugin"
@@ -27,7 +27,7 @@ package option
 // type optionBase struct {
 // }
 
-// // UpdaterID implements plugin.Type.
+// // UpdaterID implements plugin.Resource.
 // func (base *optionBase) PluginID() string {
 // 	return id
 // }

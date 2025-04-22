@@ -2,11 +2,11 @@ package plugin
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
 	"github.com/nexitf/unit/internal/core/utils"
+	"github.com/nexitf/unit/internal/errors"
 )
 
 // Plugin resource-binding types must implement

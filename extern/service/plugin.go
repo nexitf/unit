@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"sync"
 	"time"
 
 	"github.com/nexitf/lamp"
+	"github.com/nexitf/unit/internal/errors"
 	"github.com/nexitf/unit/plugin"
 )
 
@@ -17,6 +17,8 @@ var (
 	ErrUnrecognizedVariableType = errors.New("unrecognized variable type")
 	ErrUnrecognizedBindOption   = errors.New("unrecognized bind option")
 )
+
+type Endpoint = lamp.Endpoint
 
 var (
 	id   string
@@ -29,46 +31,56 @@ func init() {
 	id = plugin.Register(plug)
 }
 
-type ServiceBase struct {
+type Base struct {
 }
 
 // PluginID implements plugin.Resource.
-func (base *ServiceBase) PluginID() string {
+func (base *Base) PluginID() string {
 	return id
 }
 
+// Init implements Service.
+func (base *Base) Init() {
+}
+
 // Bind implements Service.
-func (base *ServiceBase) Bind(opts ...plugin.BindOption) (unused []plugin.BindOption) {
+func (base *Base) Bind(opts ...plugin.BindOption) (unused []plugin.BindOption) {
 	return opts
 }
 
 type Service interface {
 	PluginID() string
+	Init()
 	Bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
-	Update(addrs []lamp.Address) (err error)
+	Update(endpoints []Endpoint) (err error)
 }
 
 // Service base methods
-type serviceBase struct {
+type base struct {
 }
 
-// PluginID implements plugin.Type.
-func (base *serviceBase) PluginID() string {
+// PluginID implements plugin.Resource.
+func (base *base) PluginID() string {
 	return id
 }
 
-// bind implements Service.
-func (base *serviceBase) bind(opts ...plugin.BindOption) (unused []plugin.BindOption) {
+// init implements service.
+func (base *base) init() {
+}
+
+// bind implements service.
+func (base *base) bind(opts ...plugin.BindOption) (unused []plugin.BindOption) {
 	return opts
 }
 
 type service interface {
 	PluginID() string
+	init()
 	bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
-	update(addrs []lamp.Address) (err error)
+	update(endpoints []Endpoint) (err error)
 }
 
-// WithVariableReady
+// WithVariableReady binds a ready function, support all service.
 func WithVariableReady(fn func()) plugin.BindOption {
 	return func(v plugin.Resource) (used bool) {
 		up, used := v.(*serviceUpdater)
@@ -79,7 +91,7 @@ func WithVariableReady(fn func()) plugin.BindOption {
 	}
 }
 
-// WithVariableChange
+// WithVariableChange binds a change function, support all service.
 func WithVariableChange(fn func()) plugin.BindOption {
 	return func(v plugin.Resource) (used bool) {
 		up, used := v.(*serviceUpdater)
@@ -91,17 +103,18 @@ func WithVariableChange(fn func()) plugin.BindOption {
 }
 
 type serviceUpdater struct {
-	serviceBase
-	mutex    sync.RWMutex
-	addrs    []lamp.Address
-	uptime   time.Time
-	varp     plugin.Resource
-	once     sync.Once
-	bindFn   func(opts ...plugin.BindOption) (unused []plugin.BindOption)
-	updateFn func(addrs []lamp.Address) (err error)
-	readyFn  func()
-	changeFn func()
-	cancelFn func()
+	base
+	mutex     sync.RWMutex
+	varp      plugin.Resource
+	endpoints []Endpoint
+	uptime    time.Time
+	once      sync.Once
+	initFn    func()
+	bindFn    func(opts ...plugin.BindOption) (unused []plugin.BindOption)
+	updateFn  func(endpoints []Endpoint) (err error)
+	readyFn   func()
+	changeFn  func()
+	cancelFn  func()
 }
 
 // Bind implements plugin.Updater.
@@ -111,14 +124,18 @@ func (up *serviceUpdater) Bind(varp plugin.Resource, opts ...plugin.BindOption) 
 	}
 	switch vp := varp.(type) {
 	case service:
+		up.initFn = vp.init
 		up.bindFn = vp.bind
 		up.updateFn = vp.update
 	case Service:
+		up.initFn = vp.Init
 		up.bindFn = vp.Bind
 		up.updateFn = vp.Update
 	default:
 		panic(ErrUnrecognizedVariableType)
 	}
+	// Init variable
+	up.initFn()
 	// Bind options
 	unused := up.bind(opts...)
 	if len(unused) > 0 {
@@ -136,10 +153,10 @@ func (up *serviceUpdater) Snapshot() (snapshot plugin.Snapshot) {
 	defer up.mutex.RUnlock()
 	// Load snapshot
 	snapshot.Time = up.uptime
-	if up.addrs == nil {
+	if up.endpoints == nil {
 		snapshot.Data = "[]"
 	} else {
-		buf, err := json.Marshal(up.addrs)
+		buf, err := json.Marshal(up.endpoints)
 		if err != nil {
 			snapshot.Data = "[]"
 		} else {
@@ -160,13 +177,13 @@ func (up *serviceUpdater) bind(opts ...plugin.BindOption) (unused []plugin.BindO
 }
 
 // update
-func (up *serviceUpdater) update(addrs []lamp.Address) (err error) {
+func (up *serviceUpdater) update(endpoints []Endpoint) (err error) {
 	up.mutex.Lock()
 	defer up.mutex.Unlock()
 	// Update
-	err = up.updateFn(addrs)
+	err = up.updateFn(endpoints)
 	if err == nil {
-		up.addrs = addrs
+		up.endpoints = endpoints
 		up.uptime = time.Now()
 		if up.readyFn != nil {
 			up.once.Do(up.readyFn)
@@ -240,8 +257,8 @@ func (plug *servicePlugin) Bind(ctx context.Context, name string, updater plugin
 		return ErrInvalidUpdater
 	}
 	// Watch
-	cancel, err := plug.client.Watch(name, func(addrs []lamp.Address, _ bool) {
-		up.update(addrs)
+	cancel, err := plug.client.Watch(name, func(endpoints []Endpoint, _ bool) {
+		up.update(endpoints)
 	})
 	if err != nil {
 		return err

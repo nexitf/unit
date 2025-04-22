@@ -2,7 +2,8 @@ package grpc
 
 import (
 	"context"
-	"errors"
+
+	"github.com/nexitf/unit/internal/errors"
 )
 
 var (
