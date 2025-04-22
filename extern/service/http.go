@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	ErrAddressNotFound = errors.New("http address not found")
+	ErrEndpointNotFound = errors.New("endpoint not found")
 )
 
 // WithHTTPBaseURL binds the http client with the base url, example: https://www.xxx.com.
@@ -206,7 +206,7 @@ func (client *HTTPClient) makeURL(uri string) (url string, err error) {
 	}
 	addr, found := client.pick()
 	if !found {
-		return "", ErrAddressNotFound
+		return "", ErrEndpointNotFound
 	}
 	// Option: https
 	if !client.https {

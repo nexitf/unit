@@ -113,18 +113,6 @@ func WithDisableUpdate() plugin.BindOption {
 	}
 }
 
-// WithStaticUpdate sets a default value for the service, disables service updates, and supports all service.
-func WithStaticUpdate(endpoints []Endpoint) plugin.BindOption {
-	return func(varp plugin.Resource) (used bool) {
-		up, used := varp.(*serviceUpdater)
-		if used {
-			up.static = true
-			up.endpoints = endpoints
-		}
-		return
-	}
-}
-
 type serviceUpdater struct {
 	base
 	mutex     sync.RWMutex
@@ -186,9 +174,6 @@ func (up *serviceUpdater) Snapshot() (snapshot plugin.Snapshot) {
 			snapshot.Data = "[]"
 		} else {
 			snapshot.Data = string(buf)
-		}
-		if up.static {
-			snapshot.Data += " [Auto-update has been disabled]"
 		}
 	}
 	return
@@ -285,11 +270,7 @@ func (plug *servicePlugin) Bind(ctx context.Context, name string, updater plugin
 		return ErrInvalidUpdater
 	}
 	if up.static {
-		if up.endpoints != nil {
-			up.update(up.endpoints)
-		} else {
-			up.uptime = time.Now()
-		}
+		up.uptime = time.Now()
 		up.cancelFn = func() {}
 	} else {
 		// Watch

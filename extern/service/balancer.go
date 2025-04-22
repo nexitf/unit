@@ -32,12 +32,15 @@ type connBalancer interface {
 //
 // Support:
 //   - HTTPClient
-func WithRoundRobinBalancer() plugin.BindOption {
+func WithRoundRobinBalancer(endpoints ...Endpoint) plugin.BindOption {
 	return func(varp plugin.Resource) (used bool) {
 		switch client := varp.(type) {
 		// HTTPClient
 		case *HTTPClient:
 			client.balancer = NewRoundRobinBalancer()
+			if len(endpoints) > 0 {
+				client.balancer.update(endpoints)
+			}
 			return true
 		}
 		return
@@ -48,12 +51,15 @@ func WithRoundRobinBalancer() plugin.BindOption {
 //
 // Support:
 //   - HTTPClient
-func WithWeightRoundRobinBalancer() plugin.BindOption {
+func WithWeightRoundRobinBalancer(endpoints ...Endpoint) plugin.BindOption {
 	return func(varp plugin.Resource) (used bool) {
 		switch client := varp.(type) {
 		// HTTPClient
 		case *HTTPClient:
 			client.balancer = NewWeightRoundRobinBalancer()
+			if len(endpoints) > 0 {
+				client.balancer.update(endpoints)
+			}
 			return true
 		}
 		return
