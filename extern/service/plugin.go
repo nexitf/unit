@@ -80,10 +80,10 @@ type service interface {
 	update(endpoints []Endpoint) (err error)
 }
 
-// WithVariableReady binds a ready function, support all service.
+// WithVariableReady binds a ready function, and supports all service.
 func WithVariableReady(fn func()) plugin.BindOption {
-	return func(v plugin.Resource) (used bool) {
-		up, used := v.(*serviceUpdater)
+	return func(varp plugin.Resource) (used bool) {
+		up, used := varp.(*serviceUpdater)
 		if used {
 			up.readyFn = fn
 		}
@@ -91,12 +91,35 @@ func WithVariableReady(fn func()) plugin.BindOption {
 	}
 }
 
-// WithVariableChange binds a change function, support all service.
+// WithVariableChange binds a change function, and supports all service.
 func WithVariableChange(fn func()) plugin.BindOption {
-	return func(v plugin.Resource) (used bool) {
-		up, used := v.(*serviceUpdater)
+	return func(varp plugin.Resource) (used bool) {
+		up, used := varp.(*serviceUpdater)
 		if used {
 			up.changeFn = fn
+		}
+		return
+	}
+}
+
+// WithDisableUpdate disables service updates, and supports all service.
+func WithDisableUpdate() plugin.BindOption {
+	return func(varp plugin.Resource) (used bool) {
+		up, used := varp.(*serviceUpdater)
+		if used {
+			up.static = true
+		}
+		return
+	}
+}
+
+// WithStaticUpdate sets a default value for the service, disables service updates, and supports all service.
+func WithStaticUpdate(endpoints []Endpoint) plugin.BindOption {
+	return func(varp plugin.Resource) (used bool) {
+		up, used := varp.(*serviceUpdater)
+		if used {
+			up.static = true
+			up.endpoints = endpoints
 		}
 		return
 	}
@@ -106,8 +129,9 @@ type serviceUpdater struct {
 	base
 	mutex     sync.RWMutex
 	varp      plugin.Resource
-	endpoints []Endpoint
+	static    bool
 	uptime    time.Time
+	endpoints []Endpoint
 	once      sync.Once
 	initFn    func()
 	bindFn    func(opts ...plugin.BindOption) (unused []plugin.BindOption)
@@ -123,24 +147,21 @@ func (up *serviceUpdater) Bind(varp plugin.Resource, opts ...plugin.BindOption) 
 		panic(ErrUnrecognizedVariableType)
 	}
 	switch vp := varp.(type) {
-	case service:
-		up.initFn = vp.init
-		up.bindFn = vp.bind
-		up.updateFn = vp.update
 	case Service:
 		up.initFn = vp.Init
 		up.bindFn = vp.Bind
 		up.updateFn = vp.Update
+	case service:
+		up.initFn = vp.init
+		up.bindFn = vp.bind
+		up.updateFn = vp.update
 	default:
 		panic(ErrUnrecognizedVariableType)
 	}
 	// Init variable
 	up.initFn()
 	// Bind options
-	unused := up.bind(opts...)
-	if len(unused) > 0 {
-		unused = up.bindFn(unused...)
-	}
+	unused := up.bindFn(up.bind(opts...)...)
 	if len(unused) > 0 {
 		panic(ErrUnrecognizedBindOption)
 	}
@@ -154,13 +175,20 @@ func (up *serviceUpdater) Snapshot() (snapshot plugin.Snapshot) {
 	// Load snapshot
 	snapshot.Time = up.uptime
 	if up.endpoints == nil {
-		snapshot.Data = "[]"
+		if !up.static {
+			snapshot.Data = "[]"
+		} else {
+			snapshot.Data = "[Auto-update has been disabled]"
+		}
 	} else {
 		buf, err := json.Marshal(up.endpoints)
 		if err != nil {
 			snapshot.Data = "[]"
 		} else {
 			snapshot.Data = string(buf)
+		}
+		if up.static {
+			snapshot.Data += " [Auto-update has been disabled]"
 		}
 	}
 	return
@@ -183,8 +211,8 @@ func (up *serviceUpdater) update(endpoints []Endpoint) (err error) {
 	// Update
 	err = up.updateFn(endpoints)
 	if err == nil {
-		up.endpoints = endpoints
 		up.uptime = time.Now()
+		up.endpoints = endpoints
 		if up.readyFn != nil {
 			up.once.Do(up.readyFn)
 		}
@@ -256,14 +284,23 @@ func (plug *servicePlugin) Bind(ctx context.Context, name string, updater plugin
 	if !ok {
 		return ErrInvalidUpdater
 	}
-	// Watch
-	cancel, err := plug.client.Watch(name, func(endpoints []Endpoint, _ bool) {
-		up.update(endpoints)
-	})
-	if err != nil {
-		return err
+	if up.static {
+		if up.endpoints != nil {
+			up.update(up.endpoints)
+		} else {
+			up.uptime = time.Now()
+		}
+		up.cancelFn = func() {}
+	} else {
+		// Watch
+		cancel, err := plug.client.Watch(name, func(endpoints []Endpoint, _ bool) {
+			up.update(endpoints)
+		})
+		if err != nil {
+			return err
+		}
+		up.cancelFn = cancel
 	}
-	up.cancelFn = cancel
 	plug.updaters[name] = up
 	return
 }

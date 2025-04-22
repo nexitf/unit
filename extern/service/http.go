@@ -16,6 +16,20 @@ var (
 	ErrAddressNotFound = errors.New("http address not found")
 )
 
+// WithHTTPBaseURL binds the http client with the base url, example: https://www.xxx.com.
+//
+// Support:
+//   - HTTPClient
+func WithHTTPBaseURL(baseURL string) plugin.BindOption {
+	return func(varp plugin.Resource) (used bool) {
+		client, used := varp.(*HTTPClient)
+		if used {
+			client.baseURL = baseURL
+		}
+		return
+	}
+}
+
 // WithHTTPHeader binds the http client with the header.
 //
 // Support:
@@ -114,6 +128,7 @@ type HTTPClient struct {
 	host    string
 	https   bool
 	headers http.Header
+	baseURL string
 }
 
 // init
@@ -150,7 +165,12 @@ func (client *HTTPClient) bind(opts ...plugin.BindOption) (unused []plugin.BindO
 			Transport: &http.Transport{
 				Proxy: func(req *http.Request) (*url.URL, error) { return url.Parse(client.proxy) },
 			},
+			Timeout: client.timeout,
 		}))
+	}
+	// Option: balancer
+	if client.balancer == nil {
+		client.balancer = NewRoundRobinBalancer()
 	}
 
 	client.client = httpclient.NewClient(newOpts...)
@@ -176,31 +196,33 @@ func (client *HTTPClient) makeHeaders(h http.Header) (headers http.Header) {
 }
 
 // makeURL
-func (client *HTTPClient) makeURL(addr, uri string) (url string) {
-	if strings.HasPrefix(uri, "/") {
-		url = addr + uri
-	} else {
-		url = addr + "/" + uri
+func (client *HTTPClient) makeURL(uri string) (url string, err error) {
+	if !strings.HasPrefix(uri, "/") {
+		uri = "/" + uri
+	}
+	if client.baseURL != "" {
+		url = client.baseURL + uri
+		return
+	}
+	addr, found := client.pick()
+	if !found {
+		return "", ErrAddressNotFound
 	}
 	// Option: https
 	if !client.https {
-		url = "http://" + url
+		url = "http://" + addr + uri
 	} else {
-		url = "https://" + url
+		url = "https://" + addr + uri
 	}
 	return
 }
 
 // Get
 func (client *HTTPClient) Get(uri string, headers http.Header) (resp *http.Response, err error) {
-	addr, found := client.pick()
-	if !found {
-		return nil, ErrAddressNotFound
+	url, err := client.makeURL(uri)
+	if err != nil {
+		return nil, errors.Wrap(err, "GET - url creation failed")
 	}
-
-	var (
-		url = client.makeURL(addr, uri)
-	)
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -223,14 +245,10 @@ func (client *HTTPClient) Post(uri string, params url.Values, headers http.Heade
 
 // PostWithBody
 func (client *HTTPClient) PostWithBody(uri string, body io.Reader, headers http.Header) (resp *http.Response, err error) {
-	addr, found := client.pick()
-	if !found {
-		return nil, ErrAddressNotFound
+	url, err := client.makeURL(uri)
+	if err != nil {
+		return nil, errors.Wrap(err, "POST - url creation failed")
 	}
-
-	var (
-		url = client.makeURL(addr, uri)
-	)
 
 	req, err := http.NewRequest(http.MethodPost, url, body)
 	if err != nil {
@@ -253,14 +271,10 @@ func (client *HTTPClient) Put(uri string, params url.Values, headers http.Header
 
 // PutWithBody
 func (client *HTTPClient) PutWithBody(uri string, body io.Reader, headers http.Header) (resp *http.Response, err error) {
-	addr, found := client.pick()
-	if !found {
-		return nil, ErrAddressNotFound
+	url, err := client.makeURL(uri)
+	if err != nil {
+		return nil, errors.Wrap(err, "PUT - url creation failed")
 	}
-
-	var (
-		url = client.makeURL(addr, uri)
-	)
 
 	req, err := http.NewRequest(http.MethodPut, url, body)
 	if err != nil {
@@ -283,14 +297,10 @@ func (client *HTTPClient) Patch(uri string, params url.Values, headers http.Head
 
 // PatchWithBody
 func (client *HTTPClient) PatchWithBody(uri string, body io.Reader, headers http.Header) (resp *http.Response, err error) {
-	addr, found := client.pick()
-	if !found {
-		return nil, ErrAddressNotFound
+	url, err := client.makeURL(uri)
+	if err != nil {
+		return nil, errors.Wrap(err, "PATCH - url creation failed")
 	}
-
-	var (
-		url = client.makeURL(addr, uri)
-	)
 
 	req, err := http.NewRequest(http.MethodPatch, url, body)
 	if err != nil {
@@ -308,14 +318,10 @@ func (client *HTTPClient) PatchWithBody(uri string, body io.Reader, headers http
 
 // Delete
 func (client *HTTPClient) Delete(uri string, headers http.Header) (resp *http.Response, err error) {
-	addr, found := client.pick()
-	if !found {
-		return nil, ErrAddressNotFound
+	url, err := client.makeURL(uri)
+	if err != nil {
+		return nil, errors.Wrap(err, "DELETE - url creation failed")
 	}
-
-	var (
-		url = client.makeURL(addr, uri)
-	)
 
 	req, err := http.NewRequest(http.MethodDelete, url, nil)
 	if err != nil {
