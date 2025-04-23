@@ -216,8 +216,8 @@ func (up *serviceUpdater) stop() {
 }
 
 type servicePlugin struct {
-	updaters map[string]*serviceUpdater
-	client   *lamp.Client
+	discovery ServiceDiscovery
+	updaters  map[string]*serviceUpdater
 }
 
 // Name implements plugin.Plugin.
@@ -235,18 +235,18 @@ func (plug *servicePlugin) About() (about plugin.About) {
 }
 
 // Init
-func (plug *servicePlugin) Init(client *lamp.Client) {
-	plug.client = client
+func (plug *servicePlugin) Init(discovery ServiceDiscovery) {
+	plug.discovery = discovery
 }
 
 // Init inits the plugin.
-func Init(lc *lamp.Client) {
-	plug.Init(lc)
+func Init(discovery ServiceDiscovery) {
+	plug.Init(discovery)
 }
 
 // Run implements plugin.Plugin.
 func (plug *servicePlugin) Run(ctx context.Context) (err error) {
-	if plug.client == nil {
+	if plug.discovery == nil {
 		return ErrPluginNotInited
 	}
 	return
@@ -254,7 +254,7 @@ func (plug *servicePlugin) Run(ctx context.Context) (err error) {
 
 // Stop implements plugin.Plugin.
 func (plug *servicePlugin) Stop(ctx context.Context) (err error) {
-	if plug.client == nil {
+	if plug.discovery == nil {
 		return ErrPluginNotInited
 	}
 	for _, up := range plug.updaters {
@@ -271,10 +271,9 @@ func (plug *servicePlugin) Bind(ctx context.Context, name string, updater plugin
 	}
 	if up.static {
 		up.uptime = time.Now()
-		up.cancelFn = func() {}
 	} else {
 		// Watch
-		cancel, err := plug.client.Watch(name, func(endpoints []Endpoint, _ bool) {
+		cancel, err := plug.discovery.Watch(name, func(endpoints []Endpoint, _ bool) {
 			up.update(endpoints)
 		})
 		if err != nil {
@@ -289,4 +288,9 @@ func (plug *servicePlugin) Bind(ctx context.Context, name string, updater plugin
 // NewUpdater implements plugin.Plugin.
 func (plug *servicePlugin) NewUpdater() (updater plugin.Updater) {
 	return new(serviceUpdater)
+}
+
+// ServiceDiscovery
+type ServiceDiscovery interface {
+	Watch(serviceName string, update func(endpoints []Endpoint, closed bool)) (close func(), err error)
 }
