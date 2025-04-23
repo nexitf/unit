@@ -16,20 +16,6 @@ var (
 	ErrEndpointNotFound = errors.New("endpoint not found")
 )
 
-// WithHTTPBaseURL binds the http client with the base url, example: https://www.xxx.com.
-//
-// Support:
-//   - HTTPClient
-func WithHTTPBaseURL(baseURL string) plugin.BindOption {
-	return func(varp plugin.Resource) (used bool) {
-		client, used := varp.(*HTTPClient)
-		if used {
-			client.baseURL = baseURL
-		}
-		return
-	}
-}
-
 // WithHTTPHeader binds the http client with the header.
 //
 // Support:
@@ -119,7 +105,7 @@ func WithHTTPProxy(url string) plugin.BindOption {
 }
 
 type HTTPClient struct {
-	base
+	Resource
 	balancer
 	client  *httpclient.Client
 	retry   int
@@ -128,7 +114,6 @@ type HTTPClient struct {
 	host    string
 	https   bool
 	headers http.Header
-	baseURL string
 }
 
 // init
@@ -200,19 +185,16 @@ func (client *HTTPClient) makeURL(uri string) (url string, err error) {
 	if !strings.HasPrefix(uri, "/") {
 		uri = "/" + uri
 	}
-	if client.baseURL != "" {
-		url = client.baseURL + uri
-		return
-	}
 	addr, found := client.pick()
 	if !found {
 		return "", ErrEndpointNotFound
 	}
+	url = addr + uri
 	// Option: https
 	if !client.https {
-		url = "http://" + addr + uri
+		url = "http://" + url
 	} else {
-		url = "https://" + addr + uri
+		url = "https://" + url
 	}
 	return
 }

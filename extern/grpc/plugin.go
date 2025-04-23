@@ -1,4 +1,4 @@
-package service
+package grpc
 
 import (
 	"context"
@@ -9,15 +9,18 @@ import (
 	"github.com/nexitf/lamp"
 	"github.com/nexitf/unit/internal/errors"
 	"github.com/nexitf/unit/plugin"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/resolver"
 )
 
 var (
-	ErrPluginNotInited          = errors.New("plugin not inited, see 'github.com/nexitf/unit/extern/service.Init()'")
+	ErrPluginNotInited          = errors.New("plugin not inited, see 'github.com/nexitf/unit/extern/grpc.Init()'")
 	ErrInvalidUpdater           = errors.New("invalid updater")
 	ErrUnrecognizedVariableType = errors.New("unrecognized variable type")
 	ErrUnrecognizedBindOption   = errors.New("unrecognized bind option")
 )
 
+type ClientConn = grpc.ClientConn
 type Endpoint = lamp.Endpoint
 
 var (
@@ -40,30 +43,12 @@ func (res *Resource) PluginID() string {
 	return id
 }
 
-type Base struct {
-}
-
-// Init implements Service.
-func (base *Base) Init() {
-}
-
-// Bind implements Service.
-func (base *Base) Bind(opts ...plugin.BindOption) (unused []plugin.BindOption) {
-	return opts
-}
-
 type Service interface {
-	PluginID() string
-	Init()
-	Bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
-	Update(endpoints []Endpoint) (err error)
-}
-
-type service interface {
 	PluginID() string
 	init()
 	bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
-	update(endpoints []Endpoint) (err error)
+	dial(scheme, name string, builder resolver.Builder) (cc *grpc.ClientConn, err error)
+	Dialed(cc *grpc.ClientConn)
 }
 
 // WithVariableReady binds a ready function, and supports all service.
@@ -89,34 +74,11 @@ func WithVariableChange(fn func()) plugin.BindOption {
 }
 
 // WithDirectAddr binds the client with the direct addresses.
-//
-// Support:
-//   - HTTPClient
-func WithDirectAddr(addrs ...string) plugin.BindOption {
+func WithDirectAddr(addr string) plugin.BindOption {
 	return func(varp plugin.Resource) (used bool) {
 		up, used := varp.(*serviceUpdater)
 		if used {
-			for _, addr := range addrs {
-				up.static = append(up.static, Endpoint{
-					ID:     len(up.static) + 1,
-					Addr:   addr,
-					Weight: 100,
-				})
-			}
-		}
-		return
-	}
-}
-
-// WithDirectEndpoint binds the client with the direct endpoints.
-//
-// Support:
-//   - HTTPClient
-func WithDirectEndpoint(endpoints ...Endpoint) plugin.BindOption {
-	return func(varp plugin.Resource) (used bool) {
-		up, used := varp.(*serviceUpdater)
-		if used {
-			up.static = append(up.static, endpoints...)
+			up.static = append(up.static, Endpoint{ID: 1, Addr: addr, Weight: 100})
 		}
 		return
 	}
@@ -132,6 +94,8 @@ type serviceUpdater struct {
 	once      sync.Once
 	initFn    func()
 	bindFn    func(opts ...plugin.BindOption) (unused []plugin.BindOption)
+	dialFn    func(scheme, name string, builder resolver.Builder) (cc *grpc.ClientConn, err error)
+	dialedFn  func(cc *grpc.ClientConn)
 	updateFn  func(endpoints []Endpoint) (err error)
 	readyFn   func()
 	changeFn  func()
@@ -145,13 +109,10 @@ func (up *serviceUpdater) Bind(varp plugin.Resource, opts ...plugin.BindOption) 
 	}
 	switch vp := varp.(type) {
 	case Service:
-		up.initFn = vp.Init
-		up.bindFn = vp.Bind
-		up.updateFn = vp.Update
-	case service:
 		up.initFn = vp.init
 		up.bindFn = vp.bind
-		up.updateFn = vp.update
+		up.dialFn = vp.dial
+		up.dialedFn = vp.Dialed
 	default:
 		panic(ErrUnrecognizedVariableType)
 	}
@@ -186,6 +147,11 @@ func (up *serviceUpdater) Snapshot() (snapshot plugin.Snapshot) {
 		}
 	}
 	return
+}
+
+// dial
+func (up *serviceUpdater) dial(scheme, name string, builder resolver.Builder) (cc *grpc.ClientConn, err error) {
+	return up.dialFn(scheme, name, builder)
 }
 
 // bind
@@ -224,14 +190,24 @@ func (up *serviceUpdater) stop() {
 	}
 }
 
+// ResolveNow implements resolver.Resolver.
+func (up *serviceUpdater) ResolveNow(resolver.ResolveNowOptions) {
+
+}
+
+// Close implements resolver.Resolver.
+func (up *serviceUpdater) Close() {
+	up.stop()
+}
+
 type servicePlugin struct {
-	discovery ServiceDiscovery
 	updaters  map[string]*serviceUpdater
+	discovery ServiceDiscovery
 }
 
 // Name implements plugin.Plugin.
 func (plug *servicePlugin) Name() string {
-	return "NexITF service plugin"
+	return "NexITF grpc plugin"
 }
 
 // About implements plugin.Plugin.
@@ -239,7 +215,7 @@ func (plug *servicePlugin) About() (about plugin.About) {
 	about.Name = plug.Name()
 	about.Version = "1.0.0"
 	about.Author = "Kami"
-	about.Package = "github.com/nexitf/unit/extern/service"
+	about.Package = "github.com/nexitf/unit/extern/grpc"
 	return
 }
 
@@ -278,25 +254,63 @@ func (plug *servicePlugin) Bind(ctx context.Context, name string, updater plugin
 	if !ok {
 		return ErrInvalidUpdater
 	}
+	var cc *grpc.ClientConn
+	// Dial
 	if len(up.static) <= 0 {
-		// Watch
-		cancel, err := plug.discovery.Watch(name, func(endpoints []Endpoint, _ bool) {
-			up.update(endpoints)
-		})
-		if err != nil {
-			return err
-		}
-		up.cancelFn = cancel
+		cc, err = up.dial("lamp", name, plug)
 	} else {
-		up.update(up.static)
+		cc, err = up.dial("passthrough", up.static[0].Addr, plug)
+		if err == nil {
+			up.updateFn = func(endpoints []Endpoint) (err error) { return }
+			up.update(up.static)
+		}
+	}
+	if err != nil {
+		return
 	}
 	plug.updaters[name] = up
+	//
+	up.dialedFn(cc)
+	// Ready
+	if up.readyFn != nil {
+		up.once.Do(up.readyFn)
+	}
 	return
 }
 
 // NewUpdater implements plugin.Plugin.
 func (plug *servicePlugin) NewUpdater() (updater plugin.Updater) {
 	return new(serviceUpdater)
+}
+
+// Scheme implements resolver.Builder.
+func (plug *servicePlugin) Scheme() string {
+	return "lamp"
+}
+
+// Build implements resolver.Builder.
+func (plug *servicePlugin) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
+	var (
+		name = target.Endpoint()
+		up   = plug.updaters[name]
+	)
+	up.updateFn = func(endpoints []Endpoint) (err error) {
+		var addrs []resolver.Address
+		for _, endpoint := range endpoints {
+			addrs = append(addrs, resolver.Address{Addr: endpoint.Addr})
+		}
+		return cc.UpdateState(resolver.State{Addresses: addrs})
+	}
+	// Watch
+	cancel, err := plug.discovery.Watch(name, func(endpoints []Endpoint, _ bool) {
+		up.update(endpoints)
+	})
+	if err != nil {
+		up.updateFn = nil
+		return nil, err
+	}
+	up.cancelFn = cancel
+	return up, nil
 }
 
 // ServiceDiscovery
