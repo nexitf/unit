@@ -234,7 +234,6 @@ func (plug *servicePlugin) Name() string {
 func (plug *servicePlugin) About() (about plugin.About) {
 	about.Name = plug.Name()
 	about.Version = "1.0.0"
-	about.Author = "Kami"
 	about.Package = "github.com/nexitf/unit/extern/service"
 	return
 }

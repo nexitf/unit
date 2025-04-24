@@ -32,10 +32,10 @@ type Updater interface {
 }
 
 type About struct {
-	Name    string `json:"Name,omitempty"`
-	Version string `json:"Version,omitempty"`
-	Author  string `json:"Author,omitempty"`
-	Package string `json:"Package,omitempty"`
+	Name        string `json:"Name,omitempty"`
+	Version     string `json:"Version,omitempty"`
+	Description string `json:"Description,omitempty"`
+	Package     string `json:"Package,omitempty"`
 }
 
 type Plugin interface {

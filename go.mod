@@ -4,9 +4,10 @@ go 1.18
 
 require (
 	github.com/apolloconfig/agollo/v4 v4.4.0
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gojek/heimdall/v7 v7.0.3
 	github.com/nexitf/lamp v0.0.0-00010101000000-000000000000
-	github.com/nexitf/unit-plugin-apollo v0.0.0-00010101000000-000000000000
+	github.com/nexitf/unit-config-apollo v0.0.0-00010101000000-000000000000
 	github.com/thecxx/runpoint v1.0.0
 	google.golang.org/grpc v1.64.0
 )
@@ -15,7 +16,6 @@ require (
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/gojek/valkyrie v0.0.0-20180215180059-6aee720afcdf // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
@@ -52,5 +52,5 @@ require (
 
 replace (
 	github.com/nexitf/lamp => ../lamp
-	github.com/nexitf/unit-plugin-apollo => ../unit-plugin-apollo
+	github.com/nexitf/unit-config-apollo => ../unit-config-apollo
 )
