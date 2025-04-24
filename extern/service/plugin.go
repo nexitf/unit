@@ -172,11 +172,7 @@ func (up *serviceUpdater) Snapshot() (snapshot plugin.Snapshot) {
 	// Load snapshot
 	snapshot.Time = up.uptime
 	if up.endpoints == nil {
-		if len(up.static) <= 0 {
-			snapshot.Data = "[]"
-		} else {
-			snapshot.Data = "[Direct Address]"
-		}
+		snapshot.Data = "[]"
 	} else {
 		buf, err := json.Marshal(up.endpoints)
 		if err != nil {
