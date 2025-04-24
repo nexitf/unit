@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	ErrPluginNotInited          = errors.New("plugin not inited, see 'github.com/nexitf/unit/extern/option.Init()'")
+	ErrPluginNotInited          = errors.New("plugin not inited, see 'github.com/nexitf/unit/extern/config.Init()'")
 	ErrInvalidUpdater           = errors.New("invalid updater")
 	ErrUnrecognizedVariableType = errors.New("unrecognized variable type")
 	ErrUnrecognizedBindOption   = errors.New("unrecognized bind option")
