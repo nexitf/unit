@@ -28,6 +28,7 @@ type Unit struct {
 	running    int32 // Already running
 	fatal      error
 	errored    int32 // Error found
+	defers     []func()
 }
 
 func init() {
@@ -58,6 +59,16 @@ func Setup(routine Routine) {
 		panic(ErrAlreadyRunning)
 	}
 	u.Setup(routine)
+}
+
+// Defer sets a callback function to be executed when the unit exits.
+func (u *Unit) Defer(fn func()) {
+	u.defers = append(u.defers, fn)
+}
+
+// Defer sets a callback function to be executed when the unit exits.
+func Defer(fn func()) {
+	u.Defer(fn)
 }
 
 // WaitForExit
@@ -156,6 +167,14 @@ func (u *Unit) Run(ctx context.Context, opts ...RunOption) (err error) {
 	} else {
 		readyFn()
 	}
+
+	defer func() {
+		// During runtime, some resources may need to be released
+		// before the program fully exits.
+		for _, fn := range u.defers {
+			fn()
+		}
+	}()
 
 	// Will be blocked until exit
 	return u.WaitForExit(ctx)

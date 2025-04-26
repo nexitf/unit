@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nexitf/lamp"
+	"github.com/nexitf/unit/discovery"
 	"github.com/nexitf/unit/internal/errors"
 	"github.com/nexitf/unit/plugin"
 )
@@ -18,7 +18,7 @@ var (
 	ErrUnrecognizedBindOption   = errors.New("unrecognized bind option")
 )
 
-type Endpoint = lamp.Endpoint
+type Endpoint = discovery.Endpoint
 
 var (
 	id   string
@@ -88,6 +88,39 @@ func WithVariableChange(fn func()) plugin.BindOption {
 	}
 }
 
+// WithBeforeUpdate attaches a callback to be invoked before the update.
+func WithBeforeUpdate(fn func(endpoints []Endpoint) []Endpoint) plugin.BindOption {
+	return func(varp plugin.Resource) (used bool) {
+		up, used := varp.(*serviceUpdater)
+		if used {
+			up.beforeUpdateFn = fn
+		}
+		return
+	}
+}
+
+// WithAfterUpdate attaches a callback to be invoked after the update.
+func WithAfterUpdate(fn func(endpoints []Endpoint, err error)) plugin.BindOption {
+	return func(varp plugin.Resource) (used bool) {
+		up, used := varp.(*serviceUpdater)
+		if used {
+			up.afterUpdateFn = fn
+		}
+		return
+	}
+}
+
+// WithTag specifies a tag for filtering the service's endpoints.
+func WithTag(tag string) plugin.BindOption {
+	return func(varp plugin.Resource) (used bool) {
+		up, used := varp.(*serviceUpdater)
+		if used && tag != "" {
+			up.tag = tag
+		}
+		return
+	}
+}
+
 // WithDirectAddr binds the client with the direct addresses.
 //
 // Support:
@@ -124,18 +157,21 @@ func WithDirectEndpoint(endpoints ...Endpoint) plugin.BindOption {
 
 type serviceUpdater struct {
 	Resource
-	mutex     sync.RWMutex
-	varp      plugin.Resource
-	static    []Endpoint
-	uptime    time.Time
-	endpoints []Endpoint
-	once      sync.Once
-	initFn    func()
-	bindFn    func(opts ...plugin.BindOption) (unused []plugin.BindOption)
-	updateFn  func(endpoints []Endpoint) (err error)
-	readyFn   func()
-	changeFn  func()
-	cancelFn  func()
+	mutex          sync.RWMutex
+	varp           plugin.Resource
+	tag            string
+	static         []Endpoint
+	uptime         time.Time
+	endpoints      []Endpoint
+	once           sync.Once
+	initFn         func()
+	bindFn         func(opts ...plugin.BindOption) (unused []plugin.BindOption)
+	updateFn       func(endpoints []Endpoint) (err error)
+	beforeUpdateFn func(endpoints []Endpoint) []Endpoint
+	afterUpdateFn  func(endpoints []Endpoint, err error)
+	readyFn        func()
+	changeFn       func()
+	cancelFn       func()
 }
 
 // Bind implements plugin.Updater.
@@ -143,6 +179,7 @@ func (up *serviceUpdater) Bind(varp plugin.Resource, opts ...plugin.BindOption) 
 	if varp.PluginID() != id {
 		panic(ErrUnrecognizedVariableType)
 	}
+	// Init updater
 	switch vp := varp.(type) {
 	case Service:
 		up.initFn = vp.Init
@@ -155,6 +192,7 @@ func (up *serviceUpdater) Bind(varp plugin.Resource, opts ...plugin.BindOption) 
 	default:
 		panic(ErrUnrecognizedVariableType)
 	}
+	up.tag = "default"
 	// Init variable
 	up.initFn()
 	// Bind options
@@ -198,8 +236,17 @@ func (up *serviceUpdater) bind(opts ...plugin.BindOption) (unused []plugin.BindO
 func (up *serviceUpdater) update(endpoints []Endpoint) (err error) {
 	up.mutex.Lock()
 	defer up.mutex.Unlock()
+	// Before update
+	if up.beforeUpdateFn != nil {
+		endpoints = up.beforeUpdateFn(endpoints)
+	}
 	// Update
 	err = up.updateFn(endpoints)
+	// After update
+	if up.afterUpdateFn != nil {
+		up.afterUpdateFn(endpoints, err)
+	}
+	// Update success
 	if err == nil {
 		up.uptime = time.Now()
 		up.endpoints = endpoints
@@ -275,7 +322,7 @@ func (plug *servicePlugin) Bind(ctx context.Context, name string, updater plugin
 	}
 	if len(up.static) <= 0 {
 		// Watch
-		cancel, err := plug.discovery.Watch(name, func(endpoints []Endpoint, _ bool) {
+		cancel, err := plug.discovery.Watch(ctx, name, up.tag, func(endpoints []Endpoint, _ bool) {
 			up.update(endpoints)
 		})
 		if err != nil {
@@ -296,5 +343,5 @@ func (plug *servicePlugin) NewUpdater() (updater plugin.Updater) {
 
 // ServiceDiscovery
 type ServiceDiscovery interface {
-	Watch(serviceName string, update func(endpoints []Endpoint, closed bool)) (close func(), err error)
+	Watch(ctx context.Context, serviceName string, tag string, update func(endpoints []discovery.Endpoint, closed bool)) (close func(), err error)
 }

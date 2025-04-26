@@ -88,18 +88,42 @@ func WithVariableChange(fn func()) plugin.BindOption {
 	}
 }
 
+// WithBeforeUpdate attaches a callback to be invoked before the update.
+func WithBeforeUpdate(fn func(value string) string) plugin.BindOption {
+	return func(varp plugin.Resource) (used bool) {
+		up, used := varp.(*configUpdater)
+		if used {
+			up.beforeUpdateFn = fn
+		}
+		return
+	}
+}
+
+// WithAfterUpdate attaches a callback to be invoked after the update.
+func WithAfterUpdate(fn func(value string, err error)) plugin.BindOption {
+	return func(varp plugin.Resource) (used bool) {
+		up, used := varp.(*configUpdater)
+		if used {
+			up.afterUpdateFn = fn
+		}
+		return
+	}
+}
+
 type configUpdater struct {
 	Resource
-	mutex    sync.RWMutex
-	varp     plugin.Resource
-	uptime   time.Time
-	value    string
-	initFn   func()
-	bindFn   func(opts ...plugin.BindOption) (unused []plugin.BindOption)
-	updateFn func(value string) (err error)
-	readyFn  func()
-	changeFn func()
-	once     sync.Once
+	mutex          sync.RWMutex
+	varp           plugin.Resource
+	uptime         time.Time
+	value          string
+	once           sync.Once
+	initFn         func()
+	bindFn         func(opts ...plugin.BindOption) (unused []plugin.BindOption)
+	updateFn       func(value string) (err error)
+	beforeUpdateFn func(value string) string
+	afterUpdateFn  func(value string, err error)
+	readyFn        func()
+	changeFn       func()
 }
 
 // Bind implements plugin.Updater.
@@ -107,6 +131,7 @@ func (up *configUpdater) Bind(varp plugin.Resource, opts ...plugin.BindOption) {
 	if varp.PluginID() != id {
 		panic(ErrUnrecognizedVariableType)
 	}
+	// Init updater
 	switch vp := varp.(type) {
 	case Config:
 		up.initFn = vp.Init
@@ -153,8 +178,17 @@ func (up *configUpdater) bind(opts ...plugin.BindOption) (unused []plugin.BindOp
 func (up *configUpdater) update(value string) (err error) {
 	up.mutex.Lock()
 	defer up.mutex.Unlock()
+	// Before update
+	if up.beforeUpdateFn != nil {
+		value = up.beforeUpdateFn(value)
+	}
 	// Update
 	err = up.updateFn(value)
+	// After update
+	if up.afterUpdateFn != nil {
+		up.afterUpdateFn(value, err)
+	}
+	// Update success
 	if err == nil {
 		up.uptime = time.Now()
 		up.value = value

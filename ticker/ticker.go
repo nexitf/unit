@@ -5,23 +5,27 @@ import (
 	"time"
 )
 
-type Routine struct {
+type TickerRoutine struct {
 	d  time.Duration
 	fn func(time.Time) bool
 }
 
-func NewRoutine(d time.Duration, fn func(time.Time) bool) (r *Routine) {
-	r = &Routine{d: d, fn: fn}
-	return
+// NewTickerRoutine returns a new ticker routine.
+//
+// The parameter `d` specifies the interval at which the ticker runs.
+// The parameter `fn` is a callback function that is invoked on each tick.
+// If `fn` returns true, the ticker continues running; otherwise, it stops.
+func NewTickerRoutine(d time.Duration, fn func(time.Time) bool) (r *TickerRoutine) {
+	return &TickerRoutine{d: d, fn: fn}
 }
 
 // Name implements core.Routine.
-func (r *Routine) Name() string {
+func (r *TickerRoutine) Name() string {
 	return "NexITF ticker"
 }
 
 // Run implements core.Routine.
-func (r *Routine) Run(ctx context.Context) (err error) {
+func (r *TickerRoutine) Run(ctx context.Context) (err error) {
 	tick := time.NewTicker(r.d)
 	defer func() {
 		tick.Stop()
@@ -41,6 +45,6 @@ func (r *Routine) Run(ctx context.Context) (err error) {
 }
 
 // Stop implements core.Routine.
-func (r *Routine) Stop(ctx context.Context) (err error) {
+func (r *TickerRoutine) Stop(ctx context.Context) (err error) {
 	return
 }

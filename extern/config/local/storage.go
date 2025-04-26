@@ -25,7 +25,8 @@ type Local struct {
 	cancelCtx context.CancelFunc
 }
 
-// NewLocalStorage
+// NewLocalStorage returns a configuration storage based on local files.
+// `dir` defines the config directory, and `ext` sets the file extension (e.g., [.conf]).
 func NewLocalStorage(dir, ext string) (l *Local, err error) {
 	l = &Local{
 		dir:     dir,

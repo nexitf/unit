@@ -26,6 +26,11 @@ func Setup(routine Routine) {
 	core.Setup(routine)
 }
 
+// Defer sets a callback function to be executed when the unit exits.
+func Defer(fn func()) {
+	core.Defer(fn)
+}
+
 type Runtime = core.Runtime
 
 // Inspect returns all infomation of the current unit.
