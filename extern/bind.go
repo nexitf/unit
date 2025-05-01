@@ -7,11 +7,11 @@ import (
 )
 
 // Bind binds a variable to a external name.
-func Bind(varp plugin.Resource, name string, opts ...plugin.BindOption) {
-	core.BindExternal(varp, name, "", runpoint.PC(1), opts...)
+func Bind(varp plugin.Resource, name string, opts ...plugin.BindOption) (err error) {
+	return core.BindExternal(varp, name, "", runpoint.PC(1), opts...)
 }
 
 // BindWithComment binds a variable to a external name.
-func BindWithComment(varp plugin.Resource, name, comment string, opts ...plugin.BindOption) {
-	core.BindExternal(varp, name, comment, runpoint.PC(1), opts...)
+func BindWithComment(varp plugin.Resource, name, comment string, opts ...plugin.BindOption) (err error) {
+	return core.BindExternal(varp, name, comment, runpoint.PC(1), opts...)
 }

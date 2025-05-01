@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nexitf/logkit"
 	"github.com/nexitf/unit/internal/core/plugin"
 	"github.com/nexitf/unit/internal/core/utils"
 )
@@ -56,6 +57,7 @@ func (u *Unit) Setup(routine Routine) {
 // Setup
 func Setup(routine Routine) {
 	if u.IsRunning() {
+		logkit.PanicWrap(ErrAlreadyRunning, "unit already running")
 		panic(ErrAlreadyRunning)
 	}
 	u.Setup(routine)
@@ -120,6 +122,7 @@ func WithDelayReady(d time.Duration) RunOption {
 func (u *Unit) Run(ctx context.Context, opts ...RunOption) (err error) {
 	// No routine
 	if len(u.routines) <= 0 {
+		logkit.Warn("no routine found")
 		return
 	}
 
@@ -131,19 +134,30 @@ func (u *Unit) Run(ctx context.Context, opts ...RunOption) (err error) {
 	atomic.StoreInt32(&u.running, 1)
 	defer atomic.StoreInt32(&u.running, 0)
 
+	logkit.Info("unit running")
+	defer func() {
+		if err != nil {
+			logkit.ErrorWrap(err, "unit run failed")
+		}
+		logkit.Info("unit exited")
+	}()
+
 	// Init unit
 	if err = u.Init(ctx); err != nil {
+		logkit.ErrorWrap(err, "no routine found")
 		return
 	}
 
 	// Run plugin
 	if err = u.RunPlugins(ctx); err != nil {
+		logkit.ErrorWrap(err, "run plugins failed")
 		return
 	}
 	defer u.StopPlugins(ctx)
 
 	// Load dependent external resources
-	if err = u.LoadExternal(ctx); err != nil {
+	if err = u.LoadExternals(ctx); err != nil {
+		logkit.ErrorWrap(err, "load external resources failed")
 		return
 	}
 
@@ -156,6 +170,7 @@ func (u *Unit) Run(ctx context.Context, opts ...RunOption) (err error) {
 	readyFn := func() {
 		if !u.Errored() {
 			if err := u.ReadyRoutines(ctx); err != nil {
+				logkit.ErrorWrap(err, "routines not ready")
 				u.cancelCtx()
 			}
 		}
@@ -198,6 +213,7 @@ func (u *Unit) Fatal() (err error) {
 // Run
 func Run(ctx context.Context, opts ...RunOption) (err error) {
 	if u.IsRunning() {
+		logkit.PanicWrap(ErrAlreadyRunning, "unit already running")
 		panic(ErrAlreadyRunning)
 	}
 	return u.Run(ctx, opts...)

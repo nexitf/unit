@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/nexitf/logkit"
 	"github.com/nexitf/unit/internal/core/plugin"
 	"github.com/thecxx/runpoint"
 )
@@ -19,7 +20,7 @@ type Connector struct {
 }
 
 // LoadExternal
-func (u *Unit) LoadExternal(ctx context.Context) (err error) {
+func (u *Unit) LoadExternals(ctx context.Context) (err error) {
 	if len(u.externals) <= 0 {
 		return
 	}
@@ -27,6 +28,7 @@ func (u *Unit) LoadExternal(ctx context.Context) (err error) {
 	for _, connector := range u.externals {
 		err = connector.plugin.Bind(ctx, connector.name, connector.updater)
 		if err != nil {
+			logkit.ErrorWrap(err, "bind external resource failed")
 			return err
 		}
 	}
@@ -34,10 +36,16 @@ func (u *Unit) LoadExternal(ctx context.Context) (err error) {
 }
 
 // BindExternal
-func (u *Unit) BindExternal(varp plugin.Resource, name, comment string, pc *runpoint.PCounter, opts ...plugin.BindOption) {
+func (u *Unit) BindExternal(varp plugin.Resource, name, comment string, pc *runpoint.PCounter, opts ...plugin.BindOption) (err error) {
 	refVal := reflect.ValueOf(varp)
 	if refVal.Kind() != reflect.Ptr || refVal.IsNil() {
-		panic(ErrInvalidVariablePointer)
+		if u.IsRunning() {
+			logkit.ErrorWrap(ErrInvalidVariablePointer, "varp must be a pointer")
+			return ErrInvalidVariablePointer
+		} else {
+			logkit.PanicWrap(ErrInvalidVariablePointer, "varp must be a pointer")
+			panic(ErrInvalidVariablePointer)
+		}
 	}
 
 	// Plugin ID
@@ -45,12 +53,24 @@ func (u *Unit) BindExternal(varp plugin.Resource, name, comment string, pc *runp
 
 	plug, exist := plugin.Load(pluginID)
 	if !exist {
-		panic(ErrVariableCanNotBeBound)
+		if u.IsRunning() {
+			logkit.ErrorWrap(ErrVariableCanNotBeBound, "plugin not found")
+			return ErrVariableCanNotBeBound
+		} else {
+			logkit.PanicWrap(ErrVariableCanNotBeBound, "plugin not found")
+			panic(ErrVariableCanNotBeBound)
+		}
 	}
 
 	path := "plugin://" + pluginID + "/" + name
 	if _, ok := u.externals[path]; ok {
-		panic(ErrDuplicateExternalName)
+		if u.IsRunning() {
+			logkit.ErrorWrap(ErrDuplicateExternalName, "external resource already exists")
+			return ErrDuplicateExternalName
+		} else {
+			logkit.PanicWrap(ErrDuplicateExternalName, "external resource already exists")
+			panic(ErrDuplicateExternalName)
+		}
 	}
 
 	// Bind the variable
@@ -69,9 +89,19 @@ func (u *Unit) BindExternal(varp plugin.Resource, name, comment string, pc *runp
 		type_:   refType.PkgPath() + "." + refType.Name(),
 		pc:      pc,
 	}
+
+	if u.IsRunning() {
+		// Load now
+		err = plug.Bind(context.TODO(), name, updater)
+		if err != nil {
+			logkit.ErrorWrap(err, "bind external resource failed")
+		}
+	}
+
+	return err
 }
 
 // BindExternal
-func BindExternal(varp plugin.Resource, name, comment string, pc *runpoint.PCounter, opts ...plugin.BindOption) {
-	u.BindExternal(varp, name, comment, pc, opts...)
+func BindExternal(varp plugin.Resource, name, comment string, pc *runpoint.PCounter, opts ...plugin.BindOption) (err error) {
+	return u.BindExternal(varp, name, comment, pc, opts...)
 }

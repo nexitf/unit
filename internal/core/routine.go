@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/nexitf/logkit"
 )
 
 type Routine interface {
@@ -86,6 +88,7 @@ func (u *Unit) StartRoutines(ctx context.Context) {
 			if err := r.Run(ctx); err == nil {
 				r.Stop(ctx)
 			} else {
+				logkit.ErrorWrap(err, "routine run failed", logkit.Field("routine", r.Name()))
 				u.Panic(err)
 			}
 			finish.Done()
@@ -125,6 +128,7 @@ func (u *Unit) ReadyRoutines(ctx context.Context) (err error) {
 			continue
 		}
 		if err = rc.Ready(ctx); err != nil {
+			logkit.ErrorWrap(err, "routine readiness check failed", logkit.Field("routine", r.Name()))
 			u.Panic(err)
 			return
 		}

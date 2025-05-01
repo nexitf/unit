@@ -44,7 +44,7 @@ func (res *Resource) PluginID() string {
 	return id
 }
 
-type Service interface {
+type client interface {
 	PluginID() string
 	init()
 	bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
@@ -112,7 +112,7 @@ func WithDirectAddr(addr string) plugin.BindOption {
 	return func(varp plugin.Resource) (used bool) {
 		up, used := varp.(*serviceUpdater)
 		if used {
-			up.static = append(up.static, Endpoint{ID: 1, Addr: addr, Weight: 100})
+			up.static = append(up.static, Endpoint{ID: len(up.static) + 1, Addr: addr, Weight: 100})
 		}
 		return
 	}
@@ -147,7 +147,7 @@ func (up *serviceUpdater) Bind(varp plugin.Resource, opts ...plugin.BindOption) 
 	}
 	// Init updater
 	switch vp := varp.(type) {
-	case Service:
+	case client:
 		up.initFn = vp.init
 		up.bindFn = vp.bind
 		up.dialFn = vp.dial
@@ -374,5 +374,5 @@ func (plug *servicePlugin) Build(target resolver.Target, cc resolver.ClientConn,
 
 // ServiceDiscovery
 type ServiceDiscovery interface {
-	Watch(ctx context.Context, serviceName string, tag string, update func(endpoints []discovery.Endpoint, closed bool)) (close func(), err error)
+	Watch(ctx context.Context, serviceName, tag string, update func(endpoints []discovery.Endpoint, closed bool)) (close func(), err error)
 }

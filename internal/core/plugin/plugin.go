@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nexitf/logkit"
 	"github.com/nexitf/unit/internal/core/utils"
 	"github.com/nexitf/unit/internal/errors"
 )
@@ -79,10 +80,12 @@ func Register(plugin Plugin) (pluginID string) {
 	// Generate a random string as pluginID
 	pluginID, err := utils.RandomString(32)
 	if err != nil {
+		logkit.PanicWrap(err, "RandomString failed")
 		panic(err)
 	}
 	_, exist := plugins[pluginID]
 	if exist {
+		logkit.PanicWrap(ErrPluginAlreadyExist, "plugin already exists")
 		panic(ErrPluginAlreadyExist)
 	}
 	plugins[pluginID] = plugin

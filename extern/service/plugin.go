@@ -41,25 +41,26 @@ func (res *Resource) PluginID() string {
 }
 
 type Base struct {
+	Resource
 }
 
-// Init implements Service.
+// Init implements Client.
 func (base *Base) Init() {
 }
 
-// Bind implements Service.
+// Bind implements Client.
 func (base *Base) Bind(opts ...plugin.BindOption) (unused []plugin.BindOption) {
 	return opts
 }
 
-type Service interface {
+type Client interface {
 	PluginID() string
 	Init()
 	Bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
 	Update(endpoints []Endpoint) (err error)
 }
 
-type service interface {
+type client interface {
 	PluginID() string
 	init()
 	bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
@@ -181,11 +182,11 @@ func (up *serviceUpdater) Bind(varp plugin.Resource, opts ...plugin.BindOption) 
 	}
 	// Init updater
 	switch vp := varp.(type) {
-	case Service:
+	case Client:
 		up.initFn = vp.Init
 		up.bindFn = vp.Bind
 		up.updateFn = vp.Update
-	case service:
+	case client:
 		up.initFn = vp.init
 		up.bindFn = vp.bind
 		up.updateFn = vp.update
@@ -343,5 +344,5 @@ func (plug *servicePlugin) NewUpdater() (updater plugin.Updater) {
 
 // ServiceDiscovery
 type ServiceDiscovery interface {
-	Watch(ctx context.Context, serviceName string, tag string, update func(endpoints []discovery.Endpoint, closed bool)) (close func(), err error)
+	Watch(ctx context.Context, serviceName, tag string, update func(endpoints []discovery.Endpoint, closed bool)) (close func(), err error)
 }
