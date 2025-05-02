@@ -63,6 +63,7 @@ type Client interface {
 	Init()
 	Bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
 	Update(endpoints []Endpoint) (err error)
+	Close() (err error)
 }
 
 type client interface {
@@ -70,6 +71,7 @@ type client interface {
 	init()
 	bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
 	update(endpoints []Endpoint) (err error)
+	close() (err error)
 }
 
 // WithVariableReady binds a ready function, and supports all service.
@@ -175,6 +177,7 @@ type serviceUpdater struct {
 	updateFn       func(endpoints []Endpoint) (err error)
 	beforeUpdateFn func(endpoints []Endpoint) []Endpoint
 	afterUpdateFn  func(endpoints []Endpoint, err error)
+	closeFn        func() (err error)
 	readyFn        func()
 	changeFn       func()
 	cancelFn       func()
@@ -191,10 +194,12 @@ func (up *serviceUpdater) Bind(varp plugin.Resource, opts ...plugin.BindOption) 
 		up.initFn = vp.Init
 		up.bindFn = vp.Bind
 		up.updateFn = vp.Update
+		up.closeFn = vp.Close
 	case client:
 		up.initFn = vp.init
 		up.bindFn = vp.bind
 		up.updateFn = vp.update
+		up.closeFn = vp.close
 	default:
 		panic(ErrUnrecognizedVariableType)
 	}
@@ -268,6 +273,9 @@ func (up *serviceUpdater) update(endpoints []Endpoint) (err error) {
 
 // stop
 func (up *serviceUpdater) stop() {
+	if up.closeFn != nil {
+		up.closeFn()
+	}
 	if up.cancelFn != nil {
 		up.cancelFn()
 	}

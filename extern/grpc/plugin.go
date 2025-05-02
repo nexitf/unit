@@ -55,6 +55,7 @@ type client interface {
 	bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
 	dial(scheme, name string, builder resolver.Builder) (cc *grpc.ClientConn, err error)
 	Dialed(cc *grpc.ClientConn)
+	close() (err error)
 }
 
 // WithVariableReady binds a ready function, and supports all service.
@@ -140,6 +141,7 @@ type serviceUpdater struct {
 	updateFn       func(endpoints []Endpoint) (err error)
 	beforeUpdateFn func(endpoints []Endpoint) []Endpoint
 	afterUpdateFn  func(endpoints []Endpoint, err error)
+	closeFn        func() (err error)
 	readyFn        func()
 	changeFn       func()
 	cancelFn       func()
@@ -157,6 +159,7 @@ func (up *serviceUpdater) Bind(varp plugin.Resource, opts ...plugin.BindOption) 
 		up.bindFn = vp.bind
 		up.dialFn = vp.dial
 		up.dialedFn = vp.Dialed
+		up.closeFn = vp.close
 	default:
 		panic(ErrUnrecognizedVariableType)
 	}
@@ -235,6 +238,9 @@ func (up *serviceUpdater) update(endpoints []Endpoint) (err error) {
 
 // stop
 func (up *serviceUpdater) stop() {
+	if up.closeFn != nil {
+		up.closeFn()
+	}
 	if up.cancelFn != nil {
 		up.cancelFn()
 	}

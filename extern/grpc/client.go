@@ -65,7 +65,15 @@ func (base *Base) dial(scheme, name string, builder resolver.Builder) (cc *Clien
 	return base.cc, err
 }
 
-// Dialed implements service.
+// Dialed implements client.
 func (base *Base) Dialed(cc *grpc.ClientConn) {
 
+}
+
+// close implements client.
+func (base *Base) close() (err error) {
+	if base.cc != nil {
+		err = base.cc.Close()
+	}
+	return
 }

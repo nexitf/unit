@@ -162,6 +162,11 @@ func (client *HTTPClient) bind(opts ...plugin.BindOption) (unused []plugin.BindO
 	return
 }
 
+// close
+func (client *HTTPClient) close() (err error) {
+	return
+}
+
 // makeHeaders
 func (client *HTTPClient) makeHeaders(h http.Header) (headers http.Header) {
 	headers = make(http.Header)
