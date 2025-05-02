@@ -3,8 +3,6 @@ package core
 import (
 	"fmt"
 	"time"
-
-	"github.com/nexitf/unit/internal/core/plugin"
 )
 
 const (
@@ -34,13 +32,21 @@ type RtExternal struct {
 	Package  string     `json:"Package,omitempty"`
 }
 
+type RtPlugin struct {
+	PluginID    string `json:"PluginID,omitempty"`
+	Name        string `json:"Name,omitempty"`
+	Version     string `json:"Version,omitempty"`
+	Description string `json:"Description,omitempty"`
+	Package     string `json:"Package,omitempty"`
+}
+
 type Runtime struct {
-	Version   string                  `json:"Version"`
-	Fatal     string                  `json:"Fatal,omitempty"`
-	Running   bool                    `json:"Running"`
-	Routines  []RtRoutine             `json:"Routines"`
-	Externals []RtExternal            `json:"Externals"`
-	Plugins   map[string]plugin.About `json:"Plugins"`
+	Version   string       `json:"Version"`
+	Fatal     string       `json:"Fatal,omitempty"`
+	Running   bool         `json:"Running"`
+	Routines  []RtRoutine  `json:"Routines"`
+	Externals []RtExternal `json:"Externals"`
+	Plugins   []RtPlugin   `json:"Plugins"`
 }
 
 // Inspect
@@ -89,11 +95,16 @@ func Inspect() (rt Runtime) {
 		rt.Externals = append(rt.Externals, v)
 	}
 	// Plugins
-	if len(u.plugins) > 0 {
-		rt.Plugins = make(map[string]plugin.About)
-	}
-	for id, plug := range u.plugins {
-		rt.Plugins[id] = plug.About()
+	for pluginID, plugin := range u.plugins {
+		about := plugin.About()
+		v := RtPlugin{
+			PluginID:    pluginID,
+			Name:        about.Name,
+			Version:     about.Version,
+			Description: about.Description,
+			Package:     about.Package,
+		}
+		rt.Plugins = append(rt.Plugins, v)
 	}
 	return
 }

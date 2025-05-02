@@ -16,14 +16,15 @@ type RunOption = core.RunOption
 type Routine = core.Routine
 type RoutineChecker = core.RoutineChecker
 
-// WithDelayReady
-func WithDelayReady(d time.Duration) RunOption {
-	return core.WithDelayReady(d)
-}
-
-// Setup
+// Setup sets a routine implementation that will be launched and
+// run as an instance during program execution.
 func Setup(routine Routine) {
 	core.Setup(routine)
+}
+
+// Init sets a init function to be executed when the unit inits.
+func Init(fn func(ctx context.Context)) {
+	core.Init(fn)
 }
 
 // Defer sets a callback function to be executed when the unit exits.
@@ -46,6 +47,11 @@ func InspectJSON() string {
 		return "{}"
 	}
 	return string(out)
+}
+
+// WithDelayReady
+func WithDelayReady(d time.Duration) RunOption {
+	return core.WithDelayReady(d)
 }
 
 // Run

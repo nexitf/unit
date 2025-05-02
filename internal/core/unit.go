@@ -29,6 +29,7 @@ type Unit struct {
 	running    int32 // Already running
 	fatal      error
 	errored    int32 // Error found
+	inits      []func(context.Context)
 	defers     []func()
 }
 
@@ -40,7 +41,7 @@ func init() {
 }
 
 // Init
-func (u *Unit) Init(ctx context.Context) (err error) {
+func (u *Unit) init(ctx context.Context) (err error) {
 	if u.delayReady <= 0 {
 		u.delayReady = 50 * time.Millisecond
 	}
@@ -49,18 +50,34 @@ func (u *Unit) Init(ctx context.Context) (err error) {
 	return
 }
 
-// Setup
+// Setup sets a routine implementation that will be launched and
+// run as an instance during program execution.
 func (u *Unit) Setup(routine Routine) {
 	u.routines = append(u.routines, &Launcher{routine: routine})
 }
 
-// Setup
+// Setup sets a routine implementation that will be launched and
+// run as an instance during program execution.
 func Setup(routine Routine) {
 	if u.IsRunning() {
 		logkit.PanicWrap(ErrAlreadyRunning, "unit already running")
 		panic(ErrAlreadyRunning)
 	}
 	u.Setup(routine)
+}
+
+// Init sets a init function to be executed when the unit inits.
+func (u *Unit) Init(fn func(context.Context)) {
+	if u.IsRunning() {
+		logkit.PanicWrap(ErrAlreadyRunning, "unit already running")
+		panic(ErrAlreadyRunning)
+	}
+	u.inits = append(u.inits, fn)
+}
+
+// Init sets a init function to be executed when the unit inits.
+func Init(fn func(context.Context)) {
+	u.Init(fn)
 }
 
 // Defer sets a callback function to be executed when the unit exits.
@@ -143,7 +160,7 @@ func (u *Unit) Run(ctx context.Context, opts ...RunOption) (err error) {
 	}()
 
 	// Init unit
-	if err = u.Init(ctx); err != nil {
+	if err = u.init(ctx); err != nil {
 		logkit.ErrorWrap(err, "no routine found")
 		return
 	}
@@ -159,6 +176,11 @@ func (u *Unit) Run(ctx context.Context, opts ...RunOption) (err error) {
 	if err = u.LoadExternals(ctx); err != nil {
 		logkit.ErrorWrap(err, "load external resources failed")
 		return
+	}
+
+	// All init callbacks are invoked once resource loading is complete.
+	for _, fn := range u.inits {
+		fn(ctx)
 	}
 
 	ctx, u.cancelCtx = context.WithCancel(ctx)

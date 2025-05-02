@@ -31,6 +31,11 @@ func init() {
 	id = plugin.Register(plug)
 }
 
+// PluginID returns the plugin ID.
+func PluginID() string {
+	return id
+}
+
 // Resource Type Signature Interface Implementation
 type Resource struct {
 }

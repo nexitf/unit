@@ -1,4 +1,4 @@
-package ticker
+package timer
 
 import (
 	"context"
@@ -7,15 +7,14 @@ import (
 
 type TickerRoutine struct {
 	d  time.Duration
-	fn func(time.Time) bool
+	fn func(time.Time)
 }
 
 // NewTickerRoutine returns a new ticker routine.
 //
 // The parameter `d` specifies the interval at which the ticker runs.
 // The parameter `fn` is a callback function that is invoked on each tick.
-// If `fn` returns true, the ticker continues running; otherwise, it stops.
-func NewTickerRoutine(d time.Duration, fn func(time.Time) bool) (r *TickerRoutine) {
+func NewTickerRoutine(d time.Duration, fn func(time.Time)) (r *TickerRoutine) {
 	return &TickerRoutine{d: d, fn: fn}
 }
 
@@ -35,11 +34,9 @@ func (r *TickerRoutine) Run(ctx context.Context) (err error) {
 		// Cancel context
 		case <-ctx.Done():
 			return ctx.Err()
+		// Invoke
 		case tm := <-tick.C:
-			if !r.fn(tm) {
-				// Exited
-				return
-			}
+			r.fn(tm)
 		}
 	}
 }

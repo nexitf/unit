@@ -74,7 +74,7 @@ func init() {
 }
 
 // Register registers a plugin operator.
-func Register(plugin Plugin) (pluginID string) {
+func Register(plug Plugin) (pluginID string) {
 	mutex.Lock()
 	defer mutex.Unlock()
 	// Generate a random string as pluginID
@@ -88,7 +88,7 @@ func Register(plugin Plugin) (pluginID string) {
 		logkit.PanicWrap(ErrPluginAlreadyExist, "plugin already exists")
 		panic(ErrPluginAlreadyExist)
 	}
-	plugins[pluginID] = plugin
+	plugins[pluginID] = plug
 	return
 }
 

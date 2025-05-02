@@ -10,13 +10,14 @@ import (
 )
 
 type Connector struct {
-	name    string
-	type_   string
-	varp    plugin.Resource
-	updater plugin.Updater // [variable pointer] <- [updater] <- [plugin]
-	plugin  plugin.Plugin
-	comment string
-	pc      *runpoint.PCounter
+	name     string
+	type_    string
+	varp     plugin.Resource
+	updater  plugin.Updater // [variable pointer] <- [updater] <- [plugin]
+	plugin   plugin.Plugin
+	pluginID string
+	comment  string
+	pc       *runpoint.PCounter
 }
 
 // LoadExternal
@@ -81,13 +82,14 @@ func (u *Unit) BindExternal(varp plugin.Resource, name, comment string, pc *runp
 
 	// Bind a new external resource with a new updater
 	u.externals[path] = Connector{
-		name:    name,
-		varp:    varp,
-		updater: updater,
-		plugin:  plug,
-		comment: comment,
-		type_:   refType.PkgPath() + "." + refType.Name(),
-		pc:      pc,
+		name:     name,
+		varp:     varp,
+		updater:  updater,
+		plugin:   plug,
+		pluginID: pluginID,
+		comment:  comment,
+		type_:    refType.PkgPath() + "." + refType.Name(),
+		pc:       pc,
 	}
 
 	if u.IsRunning() {
