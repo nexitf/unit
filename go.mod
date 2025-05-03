@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gojek/heimdall/v7 v7.0.3
-	github.com/nexitf/logkit v0.0.0-20250503050216-c9cefd7dd719
+	github.com/nexitf/logkit v0.0.0-20250503061543-1de4738fa4d8
 	github.com/thecxx/runpoint v1.0.0
 	google.golang.org/grpc v1.64.0
 )
