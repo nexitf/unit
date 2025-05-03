@@ -13,6 +13,7 @@ type RtRoutine struct {
 	Name     string `json:"Name,omitempty"`
 	RunTime  int64  `json:"RunTime,omitempty"`
 	StopTime int64  `json:"StopTime,omitempty"`
+	Time     string `json:"Time,omitempty"`
 	Error    string `json:"Error,omitempty"`
 }
 
@@ -60,6 +61,7 @@ func Inspect() (rt Runtime) {
 	// Status
 	rt.Running = u.IsRunning()
 	// Routines
+	rt.Routines = make([]RtRoutine, 0)
 	for _, r := range u.routines {
 		l := r.(*Launcher)
 		v := RtRoutine{
@@ -71,12 +73,20 @@ func Inspect() (rt Runtime) {
 		if !l.stopTime.IsZero() {
 			v.StopTime = l.stopTime.UnixMilli()
 		}
+		if v.RunTime > 0 {
+			if v.StopTime <= 0 {
+				v.Time = formatDurationMS(time.Now().UnixMilli() - v.RunTime)
+			} else {
+				v.Time = formatDurationMS(v.StopTime - v.RunTime)
+			}
+		}
 		if l.err != nil {
 			v.Error = l.err.Error()
 		}
 		rt.Routines = append(rt.Routines, v)
 	}
 	// External names
+	rt.Externals = make([]RtExternal, 0)
 	for path, connector := range u.externals {
 		v := RtExternal{
 			Path:     path,
@@ -95,6 +105,7 @@ func Inspect() (rt Runtime) {
 		rt.Externals = append(rt.Externals, v)
 	}
 	// Plugins
+	rt.Plugins = make([]RtPlugin, 0)
 	for pluginID, plugin := range u.plugins {
 		about := plugin.About()
 		v := RtPlugin{
@@ -107,4 +118,45 @@ func Inspect() (rt Runtime) {
 		rt.Plugins = append(rt.Plugins, v)
 	}
 	return
+}
+
+// formatDurationMS converts a duration in milliseconds (int64)
+// into a human-readable string format: "Xd Xh Xm Xs"
+func formatDurationMS(ms int64) string {
+	if ms < 0 {
+		// Handle negative durations
+		return "-" + formatDurationMS(-ms)
+	}
+
+	// Convert milliseconds to time.Duration
+	duration := time.Duration(ms) * time.Millisecond
+
+	days := duration / (24 * time.Hour)
+	duration %= 24 * time.Hour
+
+	hours := duration / time.Hour
+	duration %= time.Hour
+
+	minutes := duration / time.Minute
+	duration %= time.Minute
+
+	seconds := duration / time.Second
+	duration %= time.Second
+
+	// Build formatted string
+	result := ""
+	if days > 0 {
+		result += fmt.Sprintf("%dd", days)
+	}
+	if hours > 0 || len(result) > 0 {
+		result += fmt.Sprintf("%02dh", hours)
+	}
+	if minutes > 0 || len(result) > 0 {
+		result += fmt.Sprintf("%02dm", minutes)
+	}
+	if seconds > 0 || len(result) > 0 {
+		result += fmt.Sprintf("%02ds", seconds)
+	}
+
+	return result
 }

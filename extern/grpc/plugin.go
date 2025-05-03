@@ -54,7 +54,7 @@ type client interface {
 	init()
 	bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
 	dial(scheme, name string, builder resolver.Builder) (cc *grpc.ClientConn, err error)
-	Dialed(cc *grpc.ClientConn)
+	OnConnect(cc *grpc.ClientConn)
 	close() (err error)
 }
 
@@ -137,7 +137,7 @@ type serviceUpdater struct {
 	initFn         func()
 	bindFn         func(opts ...plugin.BindOption) (unused []plugin.BindOption)
 	dialFn         func(scheme, name string, builder resolver.Builder) (cc *grpc.ClientConn, err error)
-	dialedFn       func(cc *grpc.ClientConn)
+	connectFn      func(cc *grpc.ClientConn)
 	updateFn       func(endpoints []Endpoint) (err error)
 	beforeUpdateFn func(endpoints []Endpoint) []Endpoint
 	afterUpdateFn  func(endpoints []Endpoint, err error)
@@ -158,7 +158,7 @@ func (up *serviceUpdater) Bind(varp plugin.Resource, opts ...plugin.BindOption) 
 		up.initFn = vp.init
 		up.bindFn = vp.bind
 		up.dialFn = vp.dial
-		up.dialedFn = vp.Dialed
+		up.connectFn = vp.OnConnect
 		up.closeFn = vp.close
 	default:
 		panic(ErrUnrecognizedVariableType)
@@ -326,7 +326,7 @@ func (plug *servicePlugin) Bind(ctx context.Context, name string, updater plugin
 		return
 	}
 	//
-	up.dialedFn(cc)
+	up.connectFn(cc)
 	// Update static
 	if len(up.static) > 0 {
 		up.update(up.static)

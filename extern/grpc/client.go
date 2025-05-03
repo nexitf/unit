@@ -65,8 +65,8 @@ func (base *Base) dial(scheme, name string, builder resolver.Builder) (cc *Clien
 	return base.cc, err
 }
 
-// Dialed implements client.
-func (base *Base) Dialed(cc *grpc.ClientConn) {
+// OnConnect implements client.
+func (base *Base) OnConnect(cc *grpc.ClientConn) {
 
 }
 
