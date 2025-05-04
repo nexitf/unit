@@ -6,7 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nexitf/logkit"
 	"github.com/nexitf/unit/discovery"
+	"github.com/nexitf/unit/internal/core/utils"
 	"github.com/nexitf/unit/internal/errors"
 	"github.com/nexitf/unit/plugin"
 	"google.golang.org/grpc"
@@ -239,10 +241,16 @@ func (up *serviceUpdater) update(endpoints []Endpoint) (err error) {
 // stop
 func (up *serviceUpdater) stop() {
 	if up.closeFn != nil {
-		up.closeFn()
+		spend := utils.CallSpend(func() {
+			up.closeFn()
+		})
+		logkit.Info("client close", logkit.Field("spend", spend.Seconds()))
 	}
 	if up.cancelFn != nil {
-		up.cancelFn()
+		spend := utils.CallSpend(func() {
+			up.cancelFn()
+		})
+		logkit.Info("watcher cancel", logkit.Field("spend", spend.Seconds()))
 	}
 }
 
@@ -348,6 +356,10 @@ func (plug *servicePlugin) Scheme() string {
 	return "lamp"
 }
 
+var (
+	invalidEndpoints = []Endpoint{{ID: 1, Addr: "0.0.0.0:0", Weight: 100}}
+)
+
 // Build implements resolver.Builder.
 func (plug *servicePlugin) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
 	var (
@@ -356,34 +368,33 @@ func (plug *servicePlugin) Build(target resolver.Target, cc resolver.ClientConn,
 	)
 	up.updateFn = func(endpoints []Endpoint) (err error) {
 		var addrs []resolver.Address
-		if len(endpoints) <= 0 {
+		for _, endpoint := range endpoints {
 			addrs = append(addrs, resolver.Address{
-				Addr:       "0.0.0.0:0",
-				Attributes: attributes.New("valid", false),
+				Addr:       endpoint.Addr,
+				Attributes: attributes.New("weight", uint32(endpoint.Weight)),
 			})
-		} else {
-			for _, endpoint := range endpoints {
-				addrs = append(addrs, resolver.Address{
-					Addr:       endpoint.Addr,
-					Attributes: attributes.New("valid", true),
-				})
-			}
 		}
 		return cc.UpdateState(resolver.State{Addresses: addrs})
 	}
 	// Watch
-	cancel, err := plug.discovery.Watch(up.context, name, up.tag, func(endpoints []Endpoint, _ bool) {
-		up.update(endpoints)
+	cancel, err := plug.discovery.Watch(up.context, name, up.tag, func(endpoints []Endpoint, closed bool) {
+		if len(endpoints) <= 0 {
+			if closed {
+				up.update(invalidEndpoints)
+			}
+		} else {
+			up.update(endpoints)
+		}
 	})
 	if err != nil {
 		up.updateFn = nil
 		return nil, err
 	}
-	up.cancelFn = cancel
+	up.cancelFn = func() { cancel() }
 	return up, nil
 }
 
 // ServiceDiscovery
 type ServiceDiscovery interface {
-	Watch(ctx context.Context, serviceName, tag string, update func(endpoints []discovery.Endpoint, closed bool)) (close func(), err error)
+	Watch(ctx context.Context, serviceName, tag string, update func(endpoints []discovery.Endpoint, closed bool)) (cancel func() error, err error)
 }

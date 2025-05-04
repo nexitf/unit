@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nexitf/logkit"
+	"github.com/nexitf/unit/internal/core/utils"
 )
 
 type Routine interface {
@@ -84,11 +85,22 @@ func (u *Unit) StartRoutines(ctx context.Context) {
 		finish.Add(1)
 		go func(r Routine) {
 			started.Done()
+			var err error
 			// Run routine
-			if err := r.Run(ctx); err == nil {
+			spend := utils.CallSpend(func() {
+				err = r.Run(ctx)
+			})
+			if err == nil {
+				logkit.Info("routine run successfully",
+					logkit.Field("routine", r.Name()),
+					logkit.Field("spend", spend.Seconds()),
+				)
 				r.Stop(ctx)
 			} else {
-				logkit.ErrorWrap(err, "routine run failed", logkit.Field("routine", r.Name()))
+				logkit.ErrorWrap(err, "routine run failed",
+					logkit.Field("routine", r.Name()),
+					logkit.Field("spend", spend.Seconds()),
+				)
 				u.Panic(err)
 			}
 			finish.Done()
@@ -127,11 +139,21 @@ func (u *Unit) ReadyRoutines(ctx context.Context) (err error) {
 		if !ok {
 			continue
 		}
-		if err = rc.Ready(ctx); err != nil {
-			logkit.ErrorWrap(err, "routine readiness check failed", logkit.Field("routine", r.Name()))
+		spend := utils.CallSpend(func() {
+			err = rc.Ready(ctx)
+		})
+		if err != nil {
+			logkit.ErrorWrap(err, "routine readiness check failed",
+				logkit.Field("routine", r.Name()),
+				logkit.Field("spend", spend.Seconds()),
+			)
 			u.Panic(err)
 			return
 		}
+		logkit.Info("routine readiness check successfully",
+			logkit.Field("routine", r.Name()),
+			logkit.Field("spend", spend.Seconds()),
+		)
 	}
 	return
 }

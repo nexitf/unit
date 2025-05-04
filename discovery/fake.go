@@ -14,6 +14,6 @@ type emptyDiscovery struct {
 }
 
 // Watch
-func (*emptyDiscovery) Watch(ctx context.Context, serviceName, tag string, update func(endpoints []Endpoint, closed bool)) (close func(), err error) {
+func (*emptyDiscovery) Watch(ctx context.Context, serviceName, tag string, update func(endpoints []Endpoint, closed bool)) (cancel func() error, err error) {
 	return
 }

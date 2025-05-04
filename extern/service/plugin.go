@@ -6,7 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nexitf/logkit"
 	"github.com/nexitf/unit/discovery"
+	"github.com/nexitf/unit/internal/core/utils"
 	"github.com/nexitf/unit/internal/errors"
 	"github.com/nexitf/unit/plugin"
 )
@@ -274,10 +276,16 @@ func (up *serviceUpdater) update(endpoints []Endpoint) (err error) {
 // stop
 func (up *serviceUpdater) stop() {
 	if up.closeFn != nil {
-		up.closeFn()
+		spend := utils.CallSpend(func() {
+			up.closeFn()
+		})
+		logkit.Info("client close", logkit.Field("spend", spend.Seconds()))
 	}
 	if up.cancelFn != nil {
-		up.cancelFn()
+		spend := utils.CallSpend(func() {
+			up.cancelFn()
+		})
+		logkit.Info("watcher cancel", logkit.Field("spend", spend.Seconds()))
 	}
 }
 
@@ -336,13 +344,19 @@ func (plug *servicePlugin) Bind(ctx context.Context, name string, updater plugin
 	}
 	if len(up.static) <= 0 {
 		// Watch
-		cancel, err := plug.discovery.Watch(ctx, name, up.tag, func(endpoints []Endpoint, _ bool) {
-			up.update(endpoints)
+		cancel, err := plug.discovery.Watch(ctx, name, up.tag, func(endpoints []Endpoint, closed bool) {
+			if len(endpoints) <= 0 {
+				if closed {
+					up.update(nil)
+				}
+			} else {
+				up.update(endpoints)
+			}
 		})
 		if err != nil {
 			return err
 		}
-		up.cancelFn = cancel
+		up.cancelFn = func() { cancel() }
 	} else {
 		up.update(up.static)
 	}
@@ -357,5 +371,5 @@ func (plug *servicePlugin) NewUpdater() (updater plugin.Updater) {
 
 // ServiceDiscovery
 type ServiceDiscovery interface {
-	Watch(ctx context.Context, serviceName, tag string, update func(endpoints []discovery.Endpoint, closed bool)) (close func(), err error)
+	Watch(ctx context.Context, serviceName, tag string, update func(endpoints []discovery.Endpoint, closed bool)) (cancel func() error, err error)
 }

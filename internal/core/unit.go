@@ -94,10 +94,12 @@ func Defer(fn func()) {
 func (u *Unit) WaitForExit(ctx context.Context) (err error) {
 	var (
 		ctxDone = ctx.Done()
-		timer   = utils.NewStoppedTimer()
+		timer   = utils.NewNeverTriggeringTimer()
 	)
 
 	defer timer.Stop()
+
+	logkit.Info("wait for exit")
 
 	// Register the signals to be monitored: interrupt (Ctrl+C) and termination
 	signal.Notify(u.procExited, syscall.SIGINT, syscall.SIGTERM)
@@ -113,7 +115,8 @@ func (u *Unit) WaitForExit(ctx context.Context) (err error) {
 		case <-timer.C:
 			return u.Fatal()
 		// Process exited
-		case <-u.procExited:
+		case signal := <-u.procExited:
+			logkit.Warn("process exited", logkit.Field("signal", signal.String()))
 			u.Panic(ErrProcessExited)
 			u.cancelCtx()
 			timer.Reset(3 * time.Second)
@@ -183,11 +186,15 @@ func (u *Unit) Run(ctx context.Context, opts ...RunOption) (err error) {
 		fn(ctx)
 	}
 
-	ctx, u.cancelCtx = context.WithCancel(ctx)
-	defer u.cancelCtx()
+	routineCtx, cancelRoutineCtx := context.WithCancel(ctx)
+	defer cancelRoutineCtx()
+
+	u.cancelCtx = cancelRoutineCtx
 
 	// Start routines
-	u.StartRoutines(ctx)
+	u.StartRoutines(routineCtx)
+
+	logkit.Info("all routines started successfully")
 
 	readyFn := func() {
 		if !u.Errored() {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/nexitf/logkit"
 	"github.com/nexitf/unit/internal/core/plugin"
+	"github.com/nexitf/unit/internal/core/utils"
 	"github.com/thecxx/runpoint"
 )
 
@@ -27,11 +28,20 @@ func (u *Unit) LoadExternals(ctx context.Context) (err error) {
 	}
 	// Associate external dependency names with the corresponding plugins
 	for _, connector := range u.externals {
-		err = connector.plugin.Bind(ctx, connector.name, connector.updater)
+		spend := utils.CallSpend(func() {
+			err = connector.plugin.Bind(ctx, connector.name, connector.updater)
+		})
 		if err != nil {
-			logkit.ErrorWrap(err, "bind external resource failed")
+			logkit.ErrorWrap(err, "bind external resource failed",
+				logkit.Field("name", connector.name),
+				logkit.Field("spend", spend.Seconds()),
+			)
 			return err
 		}
+		logkit.Info("load external resource successfully",
+			logkit.Field("name", connector.name),
+			logkit.Field("spend", spend.Seconds()),
+		)
 	}
 	return
 }
