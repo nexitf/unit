@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nexitf/logkit"
+	"github.com/nexitf/unit/internal/core/utils"
 	"github.com/nexitf/unit/plugin"
 )
 
@@ -253,8 +255,14 @@ func (plug *configPlugin) Stop(ctx context.Context) (err error) {
 	if plug.storage == nil {
 		return ErrPluginNotInited
 	}
-	for _, up := range plug.updaters {
-		up.stop()
+	for name, up := range plug.updaters {
+		spend := utils.CallSpend(func() {
+			up.stop()
+		})
+		logkit.Info("updater stop successfully",
+			logkit.Field("name", name),
+			logkit.Field("spend", spend.Seconds()),
+		)
 	}
 	return
 }
