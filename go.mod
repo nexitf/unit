@@ -6,7 +6,9 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gojek/heimdall/v7 v7.0.3
 	github.com/nexitf/logkit v0.0.0-20250503064053-37bc2b117b2f
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/thecxx/runpoint v1.0.0
+	go.uber.org/multierr v1.10.0
 	google.golang.org/grpc v1.64.0
 )
 
@@ -21,7 +23,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/stretchr/testify v1.8.1 // indirect
-	go.uber.org/multierr v1.10.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/net v0.22.0 // indirect
 	golang.org/x/sys v0.21.0 // indirect

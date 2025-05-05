@@ -9,6 +9,7 @@ import (
 
 	"github.com/nexitf/logkit"
 	"github.com/nexitf/unit/internal/core/utils"
+	"github.com/nexitf/unit/internal/errors"
 )
 
 type Routine interface {
@@ -101,7 +102,7 @@ func (u *Unit) StartRoutines(ctx context.Context) {
 					logkit.Field("routine", r.Name()),
 					logkit.Field("spend", spend.Seconds()),
 				)
-				u.Panic(err)
+				u.Panic(errors.Wrap(err, r.Name()))
 			}
 			finish.Done()
 			atomic.StoreInt32(&first, 1)

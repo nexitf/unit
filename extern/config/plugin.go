@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/nexitf/logkit"
-	"github.com/nexitf/unit/internal/core/utils"
+	"github.com/nexitf/unit/analytics/stats"
 	"github.com/nexitf/unit/plugin"
 )
 
@@ -256,7 +256,7 @@ func (plug *configPlugin) Stop(ctx context.Context) (err error) {
 		return ErrPluginNotInited
 	}
 	for name, up := range plug.updaters {
-		spend := utils.CallSpend(func() {
+		spend := stats.CallSpend(func() {
 			up.stop()
 		})
 		logkit.Info("updater stop successfully",

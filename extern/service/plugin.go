@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/nexitf/logkit"
+	"github.com/nexitf/unit/analytics/stats"
 	"github.com/nexitf/unit/discovery"
-	"github.com/nexitf/unit/internal/core/utils"
 	"github.com/nexitf/unit/internal/errors"
 	"github.com/nexitf/unit/plugin"
 )
@@ -276,13 +276,13 @@ func (up *serviceUpdater) update(endpoints []Endpoint) (err error) {
 // stop
 func (up *serviceUpdater) stop() {
 	if up.closeFn != nil {
-		spend := utils.CallSpend(func() {
+		spend := stats.CallSpend(func() {
 			up.closeFn()
 		})
 		logkit.Info("client close", logkit.Field("spend", spend.Seconds()))
 	}
 	if up.cancelFn != nil {
-		spend := utils.CallSpend(func() {
+		spend := stats.CallSpend(func() {
 			up.cancelFn()
 		})
 		logkit.Info("watcher cancel", logkit.Field("spend", spend.Seconds()))
@@ -331,7 +331,7 @@ func (plug *servicePlugin) Stop(ctx context.Context) (err error) {
 		return ErrPluginNotInited
 	}
 	for name, up := range plug.updaters {
-		spend := utils.CallSpend(func() {
+		spend := stats.CallSpend(func() {
 			up.stop()
 		})
 		logkit.Info("updater stop successfully",

@@ -5,10 +5,6 @@ import (
 	"time"
 )
 
-const (
-	Version = "1.0.0"
-)
-
 type RtRoutine struct {
 	Name     string `json:"Name,omitempty"`
 	RunTime  int64  `json:"RunTime,omitempty"`

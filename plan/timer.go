@@ -1,4 +1,4 @@
-package timer
+package plan
 
 import (
 	"context"
@@ -20,7 +20,7 @@ func NewTimerRoutine(d time.Duration, fn func(time.Time)) (r *TimerRoutine) {
 
 // Name implements core.Routine.
 func (r *TimerRoutine) Name() string {
-	return "NexITF timer"
+	return "NexITF timer plan"
 }
 
 // Run implements core.Routine.

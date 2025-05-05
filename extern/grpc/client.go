@@ -140,7 +140,7 @@ func WithRoundRobinBalancer() plugin.BindOption {
 		client, used := varp.(*Base)
 		if used {
 			client.newOpts = append(client.newOpts,
-				grpc.WithDefaultServiceConfig(`{"LoadBalancingPolicy": "`+roundrobin.Name+`"}`),
+				grpc.WithDefaultServiceConfig(`{"loadBalancingConfig": [{"`+roundrobin.Name+`":{}}]}`),
 			)
 		}
 		return
@@ -153,7 +153,7 @@ func WithWeightedRoundRobinBalancer() plugin.BindOption {
 		client, used := varp.(*Base)
 		if used {
 			client.newOpts = append(client.newOpts,
-				grpc.WithDefaultServiceConfig(`{"LoadBalancingPolicy": "`+weightedroundrobin.Name+`"}`),
+				grpc.WithDefaultServiceConfig(`{"loadBalancingConfig": [{"`+weightedroundrobin.Name+`":{}}]}`),
 			)
 		}
 		return

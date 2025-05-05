@@ -1,4 +1,4 @@
-package timer
+package plan
 
 import (
 	"context"
@@ -20,7 +20,7 @@ func NewTickerRoutine(d time.Duration, fn func(time.Time)) (r *TickerRoutine) {
 
 // Name implements core.Routine.
 func (r *TickerRoutine) Name() string {
-	return "NexITF ticker"
+	return "NexITF ticker plan"
 }
 
 // Run implements core.Routine.
