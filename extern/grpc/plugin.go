@@ -32,7 +32,10 @@ var (
 )
 
 func init() {
-	plug = &servicePlugin{updaters: make(map[string]*serviceUpdater)}
+	plug = &servicePlugin{
+		discovery: discovery.Offline,
+		updaters:  make(map[string]*serviceUpdater),
+	}
 	// Register plugin.
 	id = plugin.Register(plug)
 }
@@ -265,8 +268,8 @@ func (up *serviceUpdater) Close() {
 }
 
 type servicePlugin struct {
-	updaters  map[string]*serviceUpdater
 	discovery ServiceDiscovery
+	updaters  map[string]*serviceUpdater
 }
 
 // Name implements plugin.Plugin.

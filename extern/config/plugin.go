@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/nexitf/logkit"
 	"github.com/nexitf/unit/analytics/stats"
+	"github.com/nexitf/unit/internal/errors"
 	"github.com/nexitf/unit/plugin"
 )
 
@@ -214,8 +214,8 @@ func (up *configUpdater) stop() {
 }
 
 type configPlugin struct {
-	updaters map[string]*configUpdater
 	storage  Storage
+	updaters map[string]*configUpdater
 }
 
 // Name implements plugin.Plugin.

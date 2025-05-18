@@ -2,7 +2,6 @@ package local
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path"
 	"path/filepath"
@@ -10,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/nexitf/unit/internal/errors"
 )
 
 var (

@@ -9,16 +9,16 @@ import (
 	"go.uber.org/multierr"
 )
 
-type Option = cron.Option
+type CronOption = cron.Option
 
 // WithLocation overrides the timezone of the cron instance.
-func WithLocation(loc *time.Location) Option {
+func WithLocation(loc *time.Location) CronOption {
 	return cron.WithLocation(loc)
 }
 
 // WithSeconds overrides the parser used for interpreting job schedules to
 // include a seconds field as the first one.
-func WithSeconds() Option {
+func WithSeconds() CronOption {
 	return cron.WithSeconds()
 }
 
@@ -28,7 +28,7 @@ type CronRoutine struct {
 }
 
 // NewCronRoutine
-func NewCronRoutine(opts ...Option) (r *CronRoutine) {
+func NewCronRoutine(opts ...CronOption) (r *CronRoutine) {
 	// Set logger option
 	opts = append(opts,
 		cron.WithLogger(&logger{}),
