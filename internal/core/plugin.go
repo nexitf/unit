@@ -12,19 +12,19 @@ func (u *Unit) RunPlugins(ctx context.Context) (err error) {
 	if len(u.plugins) <= 0 {
 		return
 	}
-	for _, plug := range u.plugins {
+	for pluginID, plugin := range u.plugins {
 		spend := utils.CallSpend(func() {
-			err = plug.Run(ctx)
+			err = plugin.Run(ctx, pluginID)
 		})
 		if err != nil {
 			logkit.ErrorWrap(err, "plugin run failed",
-				logkit.Field("plugin", plug.Name()),
+				logkit.Field("plugin", plugin.Name()),
 				logkit.Field("spend", spend.Seconds()),
 			)
 			return
 		}
 		logkit.Info("plugin run successfully",
-			logkit.Field("plugin", plug.Name()),
+			logkit.Field("plugin", plugin.Name()),
 			logkit.Field("spend", spend.Seconds()),
 		)
 	}
@@ -36,19 +36,19 @@ func (u *Unit) StopPlugins(ctx context.Context) (err error) {
 	if len(u.plugins) <= 0 {
 		return
 	}
-	for _, plug := range u.plugins {
+	for _, plugin := range u.plugins {
 		spend := utils.CallSpend(func() {
-			err = plug.Stop(ctx)
+			err = plugin.Stop(ctx)
 		})
 		if err != nil {
 			logkit.ErrorWrap(err, "plugin stop failed",
-				logkit.Field("plugin", plug.Name()),
+				logkit.Field("plugin", plugin.Name()),
 				logkit.Field("spend", spend.Seconds()),
 			)
 			return
 		}
 		logkit.Info("plugin stop successfully",
-			logkit.Field("plugin", plug.Name()),
+			logkit.Field("plugin", plugin.Name()),
 			logkit.Field("spend", spend.Seconds()),
 		)
 	}

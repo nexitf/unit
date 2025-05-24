@@ -2,25 +2,19 @@ package unit
 
 import (
 	"context"
-	"encoding/json"
-	"time"
 
 	"github.com/nexitf/unit/internal/core"
+	"github.com/nexitf/unit/internal/core/plugin"
+	"github.com/nexitf/unit/internal/core/routine"
 )
 
 const (
 	Version = core.Version
 )
 
-type RunOption = core.RunOption
-type Routine = core.Routine
-type RoutineChecker = core.RoutineChecker
-
-// Setup sets a routine implementation that will be launched and
-// run as an instance during program execution.
-func Setup(routine Routine) {
-	core.Setup(routine)
-}
+type Plugin = plugin.Plugin
+type Routine = routine.Routine
+type RoutineChecker = routine.RoutineChecker
 
 // Init sets a init function to be executed when the unit inits.
 func Init(fn func(ctx context.Context)) {
@@ -32,26 +26,10 @@ func Defer(fn func()) {
 	core.Defer(fn)
 }
 
-type Runtime = core.Runtime
-
-// Inspect returns all infomation of the current unit.
-func Inspect() (rt Runtime) {
-	return core.Inspect()
-}
-
-// InspectJSON returns all infomation of the current unit in JSON format.
-func InspectJSON() string {
-	rt := core.Inspect()
-	out, err := json.MarshalIndent(rt, "", "  ")
-	if err != nil {
-		return "{}"
-	}
-	return string(out)
-}
-
-// WithDelayReady
-func WithDelayReady(d time.Duration) RunOption {
-	return core.WithDelayReady(d)
+// Use adds plugin to the Unit instance.
+// If the unit is already running, it logs an error and panics.
+func Use(plugins ...Plugin) {
+	core.UsePlugin(plugins...)
 }
 
 // Run

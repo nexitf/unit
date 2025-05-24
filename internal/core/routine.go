@@ -2,133 +2,46 @@ package core
 
 import (
 	"context"
-	"runtime"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	"github.com/nexitf/logkit"
+	"github.com/nexitf/unit/internal/core/routine"
 	"github.com/nexitf/unit/internal/core/utils"
-	"github.com/nexitf/unit/internal/errors"
 )
-
-type Routine interface {
-	// Name returns the name of the routine.
-	Name() string
-
-	// Run Usually, Run is the entry point of a routine.
-	// A running routine is expected to block inside Run.
-	Run(ctx context.Context) (err error)
-
-	// Stop method will be called once when the routine exits.
-	Stop(ctx context.Context) (err error)
-}
-
-type Launcher struct {
-	routine  Routine
-	err      error
-	runTime  time.Time
-	stopTime time.Time
-}
-
-// Name implements Routine.
-func (l *Launcher) Name() string {
-	return l.routine.Name()
-}
-
-// Run implements Routine.
-func (l *Launcher) Run(ctx context.Context) (err error) {
-	defer func() {
-		if l.err == nil {
-			l.err = err
-		}
-		l.stopTime = time.Now()
-	}()
-	l.runTime = time.Now()
-	return l.routine.Run(ctx)
-}
-
-// Stop implements Routine.
-func (l *Launcher) Stop(ctx context.Context) (err error) {
-	l.stopTime = time.Now()
-	return l.routine.Stop(ctx)
-}
-
-// Ready implements RoutineChecker.
-func (l *Launcher) Ready(ctx context.Context) (err error) {
-	rc, ok := l.routine.(RoutineChecker)
-	if !ok {
-		return nil
-	}
-	defer func() {
-		if l.err == nil {
-			l.err = err
-		}
-	}()
-	return rc.Ready(ctx)
-}
-
-type RoutineChecker interface {
-	Ready(ctx context.Context) (err error)
-}
 
 // StartRoutines
 func (u *Unit) StartRoutines(ctx context.Context) {
 	var (
-		first   int32
 		started sync.WaitGroup
-		finish  sync.WaitGroup
+		num     = len(u.routines)
+		report  = make(chan error, num)
 	)
 
-	// Launch tasks
+	// Launch all routines
 	for _, r := range u.routines {
 		started.Add(1)
-		finish.Add(1)
-		go func(r Routine) {
-			started.Done()
-			var err error
-			// Run routine
-			spend := utils.CallSpend(func() {
-				err = r.Run(ctx)
-			})
-			if err == nil {
-				logkit.Info("routine run successfully",
-					logkit.Field("routine", r.Name()),
-					logkit.Field("spend", spend.Seconds()),
-				)
-				r.Stop(ctx)
-			} else {
-				logkit.ErrorWrap(err, "routine run failed",
-					logkit.Field("routine", r.Name()),
-					logkit.Field("spend", spend.Seconds()),
-				)
-				u.Panic(errors.Wrap(err, r.Name()))
-			}
-			finish.Done()
-			atomic.StoreInt32(&first, 1)
-		}(r)
+		routine.Start(ctx, r, &started, report)
 	}
 
-	// Wait for all tasks be started
+	// Wait for all routines be started
 	started.Wait()
 
 	go func() {
 		// Will be blocked here
-		for {
-			if atomic.LoadInt32(&first) == 1 {
+		for err := range report {
+			num--
+			if err != nil {
+				u.Panic(err)
+				u.cancelCtx()
+			}
+			// When all routines exited
+			if num <= 0 {
+				close(report)
 				break
-			} else {
-				runtime.Gosched()
 			}
 		}
 
-		if u.Errored() {
-			// Exit all routines
-			u.cancelCtx()
-		}
-
-		// Wait for all tasks to exit
-		finish.Wait()
+		// Exit
 		close(u.unitExited)
 	}()
 }
@@ -136,7 +49,7 @@ func (u *Unit) StartRoutines(ctx context.Context) {
 // ReadyRoutines
 func (u *Unit) ReadyRoutines(ctx context.Context) (err error) {
 	for _, r := range u.routines {
-		rc, ok := r.(RoutineChecker)
+		rc, ok := r.(routine.RoutineChecker)
 		if !ok {
 			continue
 		}

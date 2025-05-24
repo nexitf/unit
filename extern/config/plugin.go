@@ -27,8 +27,6 @@ var (
 
 func init() {
 	plug = &configPlugin{updaters: make(map[string]*configUpdater)}
-	// Register plugin.
-	id = plugin.Register(plug)
 }
 
 // PluginID returns the plugin ID.
@@ -237,16 +235,25 @@ func (plug *configPlugin) Init(storage Storage) {
 	plug.storage = storage
 }
 
-// Init inits the plugin.
-func Init(storage Storage) {
+// Plugin initializes and returns a config plugin instance.
+// It takes an implementation of the ServiceDiscovery interface as a parameter
+// and initializes the global config plugin instance.
+// Parameters:
+//   - discovery: An implementation of the ServiceDiscovery interface for service discovery operations.
+//
+// Returns:
+//   - plugin.Plugin: An initialized config plugin instance implementing the plugin.Plugin interface.
+func Plugin(storage Storage) plugin.Plugin {
 	plug.Init(storage)
+	return plug
 }
 
 // Run implements plugin.Plugin.
-func (plug *configPlugin) Run(ctx context.Context) (err error) {
+func (plug *configPlugin) Run(ctx context.Context, pluginID string) (err error) {
 	if plug.storage == nil {
 		return ErrPluginNotInited
 	}
+	id = pluginID
 	return
 }
 

@@ -3,6 +3,8 @@ package core
 import (
 	"fmt"
 	"time"
+
+	"github.com/nexitf/unit/internal/core/routine"
 )
 
 type RtRoutine struct {
@@ -59,15 +61,15 @@ func Inspect() (rt Runtime) {
 	// Routines
 	rt.Routines = make([]RtRoutine, 0)
 	for _, r := range u.routines {
-		l := r.(*Launcher)
+		l := r.(*routine.Launcher)
 		v := RtRoutine{
 			Name: r.Name(),
 		}
-		if !l.runTime.IsZero() {
-			v.RunTime = l.runTime.UnixMilli()
+		if !l.RunTime.IsZero() {
+			v.RunTime = l.RunTime.UnixMilli()
 		}
-		if !l.stopTime.IsZero() {
-			v.StopTime = l.stopTime.UnixMilli()
+		if !l.StopTime.IsZero() {
+			v.StopTime = l.StopTime.UnixMilli()
 		}
 		if v.RunTime > 0 {
 			if v.StopTime <= 0 {
@@ -76,16 +78,16 @@ func Inspect() (rt Runtime) {
 				v.Time = formatDurationMS(v.StopTime - v.RunTime)
 			}
 		}
-		if l.err != nil {
-			v.Error = l.err.Error()
+		if l.Err != nil {
+			v.Error = l.Err.Error()
 		}
 		rt.Routines = append(rt.Routines, v)
 	}
 	// External names
 	rt.Externals = make([]RtExternal, 0)
-	for path, connector := range u.externals {
+	for _, connector := range u.externals {
 		v := RtExternal{
-			Path:     path,
+			Path:     connector.String(),
 			Var:      fmt.Sprintf("%p", connector.varp),
 			Type:     connector.type_,
 			Comment:  connector.comment,

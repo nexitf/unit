@@ -10,6 +10,7 @@ import (
 
 	"github.com/nexitf/logkit"
 	"github.com/nexitf/unit/internal/core/plugin"
+	"github.com/nexitf/unit/internal/core/routine"
 	"github.com/nexitf/unit/internal/core/utils"
 )
 
@@ -19,8 +20,8 @@ var (
 )
 
 type Unit struct {
-	routines   []Routine                // Routines
-	externals  map[string]Connector     // Dependent external resources
+	routines   []routine.Routine        // Routines
+	externals  []*Connector             // Dependent external resources
 	plugins    map[string]plugin.Plugin // Plugins
 	unitExited chan struct{}
 	procExited chan os.Signal
@@ -34,37 +35,36 @@ type Unit struct {
 }
 
 func init() {
-	u.routines = make([]Routine, 0)
-	u.externals = make(map[string]Connector)
+	u.routines = make([]routine.Routine, 0)
+	u.externals = make([]*Connector, 0)
+	u.plugins = make(map[string]plugin.Plugin)
 	u.unitExited = make(chan struct{})
 	u.procExited = make(chan os.Signal, 1)
 }
 
 // Init
-func (u *Unit) init(ctx context.Context) (err error) {
+func (u *Unit) init(_ context.Context) (err error) {
 	if u.delayReady <= 0 {
 		u.delayReady = 50 * time.Millisecond
 	}
-	// Load all plugins
-	u.plugins = plugin.LoadPlugins()
 	return
 }
 
-// Setup sets a routine implementation that will be launched and
-// run as an instance during program execution.
-func (u *Unit) Setup(routine Routine) {
-	u.routines = append(u.routines, &Launcher{routine: routine})
-}
+// // Setup sets a routine implementation that will be launched and
+// // run as an instance during program execution.
+// func (u *Unit) Setup(routine Routine) {
+// 	u.routines = append(u.routines, &Launcher{routine: routine})
+// }
 
-// Setup sets a routine implementation that will be launched and
-// run as an instance during program execution.
-func Setup(routine Routine) {
-	if u.IsRunning() {
-		logkit.PanicWrap(ErrAlreadyRunning, "unit already running")
-		panic(ErrAlreadyRunning)
-	}
-	u.Setup(routine)
-}
+// // Setup sets a routine implementation that will be launched and
+// // run as an instance during program execution.
+// func Setup(routine Routine) {
+// 	if u.IsRunning() {
+// 		logkit.PanicWrap(ErrAlreadyRunning, "unit already running")
+// 		panic(ErrAlreadyRunning)
+// 	}
+// 	u.Setup(routine)
+// }
 
 // Init sets a init function to be executed when the unit inits.
 func (u *Unit) Init(fn func(context.Context)) {
@@ -88,6 +88,30 @@ func (u *Unit) Defer(fn func()) {
 // Defer sets a callback function to be executed when the unit exits.
 func Defer(fn func()) {
 	u.Defer(fn)
+}
+
+// UsePlugin adds plugin to the Unit instance.
+// If the unit is already running, it logs an error and panics.
+func (u *Unit) UsePlugin(plugins ...plugin.Plugin) {
+	if u.IsRunning() {
+		logkit.PanicWrap(ErrAlreadyRunning, "unit already running")
+		panic(ErrAlreadyRunning)
+	}
+	for _, plugin := range plugins {
+		pluginID, err := utils.RandomString(32)
+		if err != nil {
+			logkit.PanicWrap(err, "plugin ID generation failed")
+			panic(err)
+		}
+		u.plugins[pluginID] = plugin
+		logkit.Info("enable plugin", logkit.Field("plugin", plugin.Name()))
+	}
+}
+
+// UsePlugin adds plugin to the Unit instance.
+// If the unit is already running, it logs an error and panics.
+func UsePlugin(plugins ...plugin.Plugin) {
+	u.UsePlugin(plugins...)
 }
 
 // WaitForExit
@@ -138,17 +162,26 @@ func WithDelayReady(d time.Duration) RunOption {
 	}
 }
 
+// WithRoutine
+func WithRoutine(routines ...routine.Routine) RunOption {
+	return func(u *Unit) {
+		for _, r := range routines {
+			u.routines = append(u.routines, &routine.Launcher{Routine: r})
+		}
+	}
+}
+
 // Run
 func (u *Unit) Run(ctx context.Context, opts ...RunOption) (err error) {
+	// Set options
+	for _, setOpt := range opts {
+		setOpt(u)
+	}
+
 	// No routine
 	if len(u.routines) <= 0 {
 		logkit.Warn("no routine found")
 		return
-	}
-
-	// Set options
-	for _, setOpt := range opts {
-		setOpt(u)
 	}
 
 	atomic.StoreInt32(&u.running, 1)

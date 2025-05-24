@@ -14,6 +14,7 @@ type Connector struct {
 	name     string
 	type_    string
 	varp     plugin.Resource
+	opts     []plugin.BindOption
 	updater  plugin.Updater // [variable pointer] <- [updater] <- [plugin]
 	plugin   plugin.Plugin
 	pluginID string
@@ -21,15 +22,27 @@ type Connector struct {
 	pc       *runpoint.PCounter
 }
 
+func (c Connector) String() string {
+	return "plugin://" + c.pluginID + "/" + c.name
+}
+
 // LoadExternal
 func (u *Unit) LoadExternals(ctx context.Context) (err error) {
-	if len(u.externals) <= 0 {
-		return
-	}
 	// Associate external dependency names with the corresponding plugins
 	for _, connector := range u.externals {
 		spend := utils.CallSpend(func() {
-			err = connector.plugin.Bind(ctx, connector.name, connector.updater)
+			pluginID := connector.varp.PluginID()
+			plugin, found := u.plugins[pluginID]
+			if !found {
+				err = ErrPluginNotFound
+			} else {
+				// Bind the variable
+				connector.updater = plugin.NewUpdater()
+				connector.updater.Bind(connector.varp, connector.opts...)
+				connector.plugin = plugin
+				connector.pluginID = pluginID
+				err = connector.plugin.Bind(ctx, connector.name, connector.updater)
+			}
 		})
 		if err != nil {
 			logkit.ErrorWrap(err, "bind external resource failed",
@@ -50,65 +63,45 @@ func (u *Unit) LoadExternals(ctx context.Context) (err error) {
 func (u *Unit) BindExternal(varp plugin.Resource, name, comment string, pc *runpoint.PCounter, opts ...plugin.BindOption) (err error) {
 	refVal := reflect.ValueOf(varp)
 	if refVal.Kind() != reflect.Ptr || refVal.IsNil() {
-		if u.IsRunning() {
-			logkit.ErrorWrap(ErrInvalidVariablePointer, "varp must be a pointer")
-			return ErrInvalidVariablePointer
-		} else {
-			logkit.PanicWrap(ErrInvalidVariablePointer, "varp must be a pointer")
-			panic(ErrInvalidVariablePointer)
-		}
+		logkit.PanicWrap(ErrInvalidVariablePointer, "varp must be a pointer")
+		panic(ErrInvalidVariablePointer)
 	}
-
-	// Plugin ID
-	pluginID := varp.PluginID()
-
-	plug, exist := plugin.Load(pluginID)
-	if !exist {
-		if u.IsRunning() {
-			logkit.ErrorWrap(ErrVariableCanNotBeBound, "plugin not found")
-			return ErrVariableCanNotBeBound
-		} else {
-			logkit.PanicWrap(ErrVariableCanNotBeBound, "plugin not found")
-			panic(ErrVariableCanNotBeBound)
-		}
-	}
-
-	path := "plugin://" + pluginID + "/" + name
-	if _, ok := u.externals[path]; ok {
-		if u.IsRunning() {
-			logkit.ErrorWrap(ErrDuplicateExternalName, "external resource already exists")
-			return ErrDuplicateExternalName
-		} else {
-			logkit.PanicWrap(ErrDuplicateExternalName, "external resource already exists")
-			panic(ErrDuplicateExternalName)
-		}
-	}
-
-	// Bind the variable
-	updater := plug.NewUpdater()
-	updater.Bind(varp, opts...)
 
 	refType := reflect.TypeOf(varp).Elem()
 
-	// Bind a new external resource with a new updater
-	u.externals[path] = Connector{
-		name:     name,
-		varp:     varp,
-		updater:  updater,
-		plugin:   plug,
-		pluginID: pluginID,
-		comment:  comment,
-		type_:    refType.PkgPath() + "." + refType.Name(),
-		pc:       pc,
+	connector := &Connector{
+		name:    name,
+		varp:    varp,
+		opts:    opts,
+		comment: comment,
+		type_:   refType.PkgPath() + "." + refType.Name(),
+		pc:      pc,
 	}
 
 	if u.IsRunning() {
+		// Plugin ID
+		pluginID := varp.PluginID()
+
+		plugin, found := u.plugins[pluginID]
+		if !found {
+			return ErrPluginNotFound
+		}
+
+		// Bind the variable
+		connector.updater = plugin.NewUpdater()
+		connector.updater.Bind(varp, opts...)
+		connector.plugin = plugin
+		connector.pluginID = pluginID
+
 		// Load now
-		err = plug.Bind(context.TODO(), name, updater)
+		err = connector.plugin.Bind(context.TODO(), name, connector.updater)
 		if err != nil {
 			logkit.ErrorWrap(err, "bind external resource failed")
 		}
 	}
+
+	// Bind a new external resource
+	u.externals = append(u.externals, connector)
 
 	return err
 }

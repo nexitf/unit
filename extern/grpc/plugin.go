@@ -36,8 +36,6 @@ func init() {
 		discovery: discovery.Offline,
 		updaters:  make(map[string]*serviceUpdater),
 	}
-	// Register plugin.
-	id = plugin.Register(plug)
 }
 
 // PluginID returns the plugin ID.
@@ -290,16 +288,25 @@ func (plug *servicePlugin) Init(discovery ServiceDiscovery) {
 	plug.discovery = discovery
 }
 
-// Init inits the plugin.
-func Init(discovery ServiceDiscovery) {
+// Plugin initializes and returns a grpc plugin instance.
+// It takes an implementation of the ServiceDiscovery interface as a parameter
+// and initializes the global grpc plugin instance.
+// Parameters:
+//   - discovery: An implementation of the ServiceDiscovery interface for service discovery operations.
+//
+// Returns:
+//   - plugin.Plugin: An initialized grpc plugin instance implementing the plugin.Plugin interface.
+func Plugin(discovery ServiceDiscovery) plugin.Plugin {
 	plug.Init(discovery)
+	return plug
 }
 
 // Run implements plugin.Plugin.
-func (plug *servicePlugin) Run(ctx context.Context) (err error) {
+func (plug *servicePlugin) Run(ctx context.Context, pluginID string) (err error) {
 	if plug.discovery == nil {
 		return ErrPluginNotInited
 	}
+	id = pluginID
 	return
 }
 

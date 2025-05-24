@@ -2,12 +2,7 @@ package plugin
 
 import (
 	"context"
-	"sync"
 	"time"
-
-	"github.com/nexitf/logkit"
-	"github.com/nexitf/unit/internal/core/utils"
-	"github.com/nexitf/unit/internal/errors"
 )
 
 // Plugin resource-binding types must implement
@@ -48,7 +43,7 @@ type Plugin interface {
 	About() (about About)
 
 	// Run
-	Run(ctx context.Context) (err error)
+	Run(ctx context.Context, pluginID string) (err error)
 
 	// Stop
 	Stop(ctx context.Context) (err error)
@@ -58,51 +53,4 @@ type Plugin interface {
 
 	// NewUpdater creates a new variable updater.
 	NewUpdater() (updater Updater)
-}
-
-var (
-	ErrPluginAlreadyExist = errors.New("plugin already exist")
-)
-
-var (
-	mutex   sync.RWMutex
-	plugins map[string]Plugin
-)
-
-func init() {
-	plugins = make(map[string]Plugin)
-}
-
-// Register registers a plugin operator.
-func Register(plug Plugin) (pluginID string) {
-	mutex.Lock()
-	defer mutex.Unlock()
-	// Generate a random string as pluginID
-	pluginID, err := utils.RandomString(32)
-	if err != nil {
-		logkit.PanicWrap(err, "RandomString failed")
-		panic(err)
-	}
-	_, exist := plugins[pluginID]
-	if exist {
-		logkit.PanicWrap(ErrPluginAlreadyExist, "plugin already exists")
-		panic(ErrPluginAlreadyExist)
-	}
-	plugins[pluginID] = plug
-	return
-}
-
-// Load returns a plugin.
-func Load(pluginID string) (plug Plugin, exist bool) {
-	mutex.RLock()
-	defer mutex.RUnlock()
-	plug, exist = plugins[pluginID]
-	return
-}
-
-// LoadPlugins returns all plugins.
-func LoadPlugins() map[string]Plugin {
-	mutex.RLock()
-	defer mutex.RUnlock()
-	return plugins
 }
