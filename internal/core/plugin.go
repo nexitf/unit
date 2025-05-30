@@ -7,11 +7,17 @@ import (
 	"github.com/nexitf/unit/internal/core/utils"
 )
 
-// RunPlugins
+// RunPlugins sequentially executes the Run method of all plugins in the Unit instance.
+// This method iterates over all registered plugins in the Unit, calls the Run method of each plugin in order,
+// and records the execution time of each plugin. If an error occurs during the execution of a plugin,
+// it logs the error and returns immediately.
+//
+// Parameters:
+// - ctx: The context used to control the lifecycle of plugin execution, which can be used for cancellation or timeout control.
+//
+// Returns:
+// - err: Returns nil if all plugins are executed successfully; otherwise, returns the error.
 func (u *Unit) RunPlugins(ctx context.Context) (err error) {
-	if len(u.plugins) <= 0 {
-		return
-	}
 	for pluginID, plugin := range u.plugins {
 		spend := utils.CallSpend(func() {
 			err = plugin.Run(ctx, pluginID)
@@ -31,11 +37,17 @@ func (u *Unit) RunPlugins(ctx context.Context) (err error) {
 	return
 }
 
-// StopPlugins
+// StopPlugins sequentially executes the Stop method of all plugins in the Unit instance.
+// This method iterates over all registered plugins in the Unit, calls the Stop method of each plugin in order,
+// and records the execution time of each plugin. If an error occurs during the execution of a plugin,
+// it logs the error and returns immediately.
+//
+// Parameters:
+// - ctx: The context used to control the lifecycle of plugin stopping, which can be used for cancellation or timeout control.
+//
+// Returns:
+// - err: Returns nil if all plugins are stopped successfully; otherwise, returns the error.
 func (u *Unit) StopPlugins(ctx context.Context) (err error) {
-	if len(u.plugins) <= 0 {
-		return
-	}
 	for _, plugin := range u.plugins {
 		spend := utils.CallSpend(func() {
 			err = plugin.Stop(ctx)

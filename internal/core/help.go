@@ -2,9 +2,8 @@ package core
 
 import (
 	"fmt"
+	"sort"
 	"time"
-
-	"github.com/nexitf/unit/internal/core/routine"
 )
 
 type RtRoutine struct {
@@ -53,23 +52,22 @@ func Inspect() (rt Runtime) {
 	// Version
 	rt.Version = Version
 	// Error
-	if err := u.Fatal(); err != nil {
-		rt.Fatal = err.Error()
+	if u.fatal != nil {
+		rt.Fatal = u.fatal.Error()
 	}
 	// Status
 	rt.Running = u.IsRunning()
 	// Routines
 	rt.Routines = make([]RtRoutine, 0)
-	for _, r := range u.routines {
-		l := r.(*routine.Launcher)
+	for _, l := range u.scheduler.Routines() {
 		v := RtRoutine{
-			Name: r.Name(),
+			Name: l.Name(),
 		}
-		if !l.RunTime.IsZero() {
-			v.RunTime = l.RunTime.UnixMilli()
+		if rt := l.RunTime(); !rt.IsZero() {
+			v.RunTime = rt.UnixMilli()
 		}
-		if !l.StopTime.IsZero() {
-			v.StopTime = l.StopTime.UnixMilli()
+		if st := l.StopTime(); !st.IsZero() {
+			v.StopTime = st.UnixMilli()
 		}
 		if v.RunTime > 0 {
 			if v.StopTime <= 0 {
@@ -78,8 +76,8 @@ func Inspect() (rt Runtime) {
 				v.Time = formatDurationMS(v.StopTime - v.RunTime)
 			}
 		}
-		if l.Err != nil {
-			v.Error = l.Err.Error()
+		if err := l.Err(); err != nil {
+			v.Error = err.Error()
 		}
 		rt.Routines = append(rt.Routines, v)
 	}
@@ -95,10 +93,12 @@ func Inspect() (rt Runtime) {
 			Line:     connector.pc.Line(),
 			Package:  connector.pc.PackFull(),
 		}
-		snap := connector.updater.Snapshot()
-		if !snap.Time.IsZero() {
-			v.Snapshot.Time = snap.Time.In(time.Local).Format("2006-01-02 15:04:05.000000")
-			v.Snapshot.Data = snap.Data
+		if connector.updater != nil {
+			snap := connector.updater.Snapshot()
+			if !snap.Time.IsZero() {
+				v.Snapshot.Time = snap.Time.In(time.Local).Format("2006-01-02 15:04:05.000000")
+				v.Snapshot.Data = snap.Data
+			}
 		}
 		rt.Externals = append(rt.Externals, v)
 	}
@@ -115,6 +115,10 @@ func Inspect() (rt Runtime) {
 		}
 		rt.Plugins = append(rt.Plugins, v)
 	}
+	// Sort plugins
+	sort.Slice(rt.Plugins, func(i, j int) bool {
+		return rt.Plugins[i].Name < rt.Plugins[j].Name
+	})
 	return
 }
 

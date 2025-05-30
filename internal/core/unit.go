@@ -20,25 +20,23 @@ var (
 )
 
 type Unit struct {
-	routines   []routine.Routine        // Routines
+	scheduler  *routine.Scheduler
+	exloadeds  map[string]struct{}
 	externals  []*Connector             // Dependent external resources
 	plugins    map[string]plugin.Plugin // Plugins
-	unitExited chan struct{}
 	procExited chan os.Signal
 	delayReady time.Duration
-	cancelCtx  context.CancelFunc
 	running    int32 // Already running
 	fatal      error
-	errored    int32 // Error found
 	inits      []func(context.Context)
 	defers     []func()
 }
 
 func init() {
-	u.routines = make([]routine.Routine, 0)
+	u.scheduler = routine.NewScheduler()
+	u.exloadeds = make(map[string]struct{})
 	u.externals = make([]*Connector, 0)
 	u.plugins = make(map[string]plugin.Plugin)
-	u.unitExited = make(chan struct{})
 	u.procExited = make(chan os.Signal, 1)
 }
 
@@ -49,22 +47,6 @@ func (u *Unit) init(_ context.Context) (err error) {
 	}
 	return
 }
-
-// // Setup sets a routine implementation that will be launched and
-// // run as an instance during program execution.
-// func (u *Unit) Setup(routine Routine) {
-// 	u.routines = append(u.routines, &Launcher{routine: routine})
-// }
-
-// // Setup sets a routine implementation that will be launched and
-// // run as an instance during program execution.
-// func Setup(routine Routine) {
-// 	if u.IsRunning() {
-// 		logkit.PanicWrap(ErrAlreadyRunning, "unit already running")
-// 		panic(ErrAlreadyRunning)
-// 	}
-// 	u.Setup(routine)
-// }
 
 // Init sets a init function to be executed when the unit inits.
 func (u *Unit) Init(fn func(context.Context)) {
@@ -90,9 +72,9 @@ func Defer(fn func()) {
 	u.Defer(fn)
 }
 
-// UsePlugin adds plugin to the Unit instance.
+// Use adds plugin to the Unit instance.
 // If the unit is already running, it logs an error and panics.
-func (u *Unit) UsePlugin(plugins ...plugin.Plugin) {
+func (u *Unit) Use(plugins ...plugin.Plugin) {
 	if u.IsRunning() {
 		logkit.PanicWrap(ErrAlreadyRunning, "unit already running")
 		panic(ErrAlreadyRunning)
@@ -108,10 +90,10 @@ func (u *Unit) UsePlugin(plugins ...plugin.Plugin) {
 	}
 }
 
-// UsePlugin adds plugin to the Unit instance.
+// Use adds plugin to the Unit instance.
 // If the unit is already running, it logs an error and panics.
-func UsePlugin(plugins ...plugin.Plugin) {
-	u.UsePlugin(plugins...)
+func Use(plugins ...plugin.Plugin) {
+	u.Use(plugins...)
 }
 
 // WaitForExit
@@ -125,6 +107,12 @@ func (u *Unit) WaitForExit(ctx context.Context) (err error) {
 
 	logkit.Info("wait for exit")
 
+	// Used to interrupt the execution of the routines
+	interrupt := func(err error) {
+		u.fatal = err
+		u.scheduler.Interrupt(err)
+	}
+
 	// Register the signals to be monitored: interrupt (Ctrl+C) and termination
 	signal.Notify(u.procExited, syscall.SIGINT, syscall.SIGTERM)
 
@@ -132,54 +120,44 @@ func (u *Unit) WaitForExit(ctx context.Context) (err error) {
 		select {
 		// Cancel context
 		case <-ctxDone:
-			u.Panic(ctx.Err())
+			interrupt(ctx.Err())
 			timer.Reset(3 * time.Second)
 			ctxDone = nil
 		// Delay exited
 		case <-timer.C:
-			return u.Fatal()
+			return u.fatal
 		// Process exited
 		case signal := <-u.procExited:
-			logkit.Warn("process exited", logkit.Field("signal", signal.String()))
-			u.Panic(ErrProcessExited)
-			u.cancelCtx()
+			interrupt(ErrProcessExited)
 			timer.Reset(3 * time.Second)
+			logkit.Warn("process exited", logkit.Field("signal", signal.String()))
 		// Unit exited
-		case <-u.unitExited:
-			return u.Fatal()
-		}
-	}
-}
-
-type RunOption func(*Unit)
-
-// WithDelayReady
-func WithDelayReady(d time.Duration) RunOption {
-	return func(u *Unit) {
-		if d > 0 {
-			u.delayReady = d
-		}
-	}
-}
-
-// WithRoutine
-func WithRoutine(routines ...routine.Routine) RunOption {
-	return func(u *Unit) {
-		for _, r := range routines {
-			u.routines = append(u.routines, &routine.Launcher{Routine: r})
+		case <-u.scheduler.Done():
+			u.fatal = u.scheduler.Err()
+			return u.fatal
 		}
 	}
 }
 
 // Run
-func (u *Unit) Run(ctx context.Context, opts ...RunOption) (err error) {
+func (u *Unit) Run(ctx context.Context, routine routine.Routine, opts ...RunOption) (err error) {
 	// Set options
 	for _, setOpt := range opts {
 		setOpt(u)
 	}
 
+	// Load all routines
+	rg, ok := routine.(*RoutineGroup)
+	if !ok {
+		u.scheduler.Add(routine)
+	} else {
+		for _, r := range rg.routines {
+			u.scheduler.Add(r)
+		}
+	}
+
 	// No routine
-	if len(u.routines) <= 0 {
+	if u.scheduler.Num() <= 0 {
 		logkit.Warn("no routine found")
 		return
 	}
@@ -219,23 +197,12 @@ func (u *Unit) Run(ctx context.Context, opts ...RunOption) (err error) {
 		fn(ctx)
 	}
 
-	routineCtx, cancelRoutineCtx := context.WithCancel(ctx)
-	defer cancelRoutineCtx()
-
-	u.cancelCtx = cancelRoutineCtx
-
 	// Start routines
-	u.StartRoutines(routineCtx)
-
+	u.scheduler.Start(ctx)
 	logkit.Info("all routines started successfully")
 
 	readyFn := func() {
-		if !u.Errored() {
-			if err := u.ReadyRoutines(ctx); err != nil {
-				logkit.ErrorWrap(err, "routines not ready")
-				u.cancelCtx()
-			}
-		}
+		u.scheduler.Ready(ctx)
 	}
 	if u.delayReady > 0 {
 		// Wait for a short period to verify
@@ -257,26 +224,11 @@ func (u *Unit) Run(ctx context.Context, opts ...RunOption) (err error) {
 	return u.WaitForExit(ctx)
 }
 
-// Panic
-func (u *Unit) Panic(err error) {
-	if u.fatal != nil {
-		return
-	}
-	u.fatal = err
-	atomic.StoreInt32(&u.errored, 1)
-}
-
-// Fatal returns the fatal error
-// encountered during the unit's lifecycle.
-func (u *Unit) Fatal() (err error) {
-	return u.fatal
-}
-
 // Run
-func Run(ctx context.Context, opts ...RunOption) (err error) {
+func Run(ctx context.Context, routine routine.Routine, opts ...RunOption) (err error) {
 	if u.IsRunning() {
 		logkit.PanicWrap(ErrAlreadyRunning, "unit already running")
 		panic(ErrAlreadyRunning)
 	}
-	return u.Run(ctx, opts...)
+	return u.Run(ctx, routine, opts...)
 }
