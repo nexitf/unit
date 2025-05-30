@@ -50,22 +50,24 @@ func (u *Unit) LoadExternals(ctx context.Context) (err error) {
 	for _, connector := range u.externals {
 		spend := utils.CallSpend(func() {
 			pluginID := connector.varp.PluginID()
-			plugin, found := u.plugins[pluginID]
+			plugin, found := u.FindPlugin(pluginID)
 			if !found {
 				err = ErrPluginNotFound
-			} else {
-				connector.plugin = plugin
-				connector.pluginID = pluginID
-				if _, ok := u.exloadeds[connector.String()]; ok {
-					err = ErrDuplicateExternalName
-				} else {
-					u.exloadeds[connector.String()] = struct{}{}
-					// Bind the variable
-					connector.updater = plugin.NewUpdater()
-					connector.updater.Bind(connector.varp, connector.opts...)
-					err = connector.plugin.Bind(ctx, connector.name, connector.updater)
-				}
+				return
 			}
+
+			connector.plugin = plugin
+			connector.pluginID = pluginID
+			if _, ok := u.exloadeds[connector.String()]; ok {
+				err = ErrDuplicateExternalName
+				return
+			}
+			u.exloadeds[connector.String()] = struct{}{}
+
+			// Bind the variable
+			connector.updater = plugin.NewUpdater()
+			connector.updater.Bind(connector.varp, connector.opts...)
+			err = connector.plugin.Bind(ctx, connector.name, connector.updater)
 		})
 		if err != nil {
 			logkit.ErrorWrap(err, "bind external resource failed",
@@ -119,31 +121,35 @@ func (u *Unit) BindExternal(varp plugin.Resource, name, comment string, pc *runp
 		// Plugin ID
 		pluginID := varp.PluginID()
 
-		plugin, found := u.plugins[pluginID]
+		plugin, found := u.FindPlugin(pluginID)
 		if !found {
 			return ErrPluginNotFound
 		}
+
 		connector.plugin = plugin
 		connector.pluginID = pluginID
 		if _, ok := u.exloadeds[connector.String()]; ok {
-			err = ErrDuplicateExternalName
-		} else {
-			u.exloadeds[connector.String()] = struct{}{}
-			// Bind the variable
-			connector.updater = plugin.NewUpdater()
-			connector.updater.Bind(varp, opts...)
-			// Load now
-			err = connector.plugin.Bind(context.TODO(), name, connector.updater)
-			if err != nil {
-				logkit.ErrorWrap(err, "bind external resource failed")
-			}
+			return ErrDuplicateExternalName
+		}
+
+		u.exloadeds[connector.String()] = struct{}{}
+
+		// Bind the variable
+		connector.updater = plugin.NewUpdater()
+		connector.updater.Bind(varp, opts...)
+
+		ctx, cancelCtx := context.WithTimeout(u.runCtx, u.bindTimeout)
+		defer cancelCtx()
+		// Load now
+		err = connector.plugin.Bind(ctx, name, connector.updater)
+		if err != nil {
+			logkit.ErrorWrap(err, "bind external resource failed")
+			return
 		}
 	}
 
 	// Bind a new external resource
-	if err == nil {
-		u.externals = append(u.externals, connector)
-	}
+	u.externals = append(u.externals, connector)
 
 	return err
 }

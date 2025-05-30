@@ -5,6 +5,7 @@ import (
 
 	"github.com/nexitf/logkit"
 	"github.com/nexitf/unit/internal/core/utils"
+	"github.com/nexitf/unit/plugin"
 )
 
 // RunPlugins sequentially executes the Run method of all plugins in the Unit instance.
@@ -64,5 +65,19 @@ func (u *Unit) StopPlugins(ctx context.Context) (err error) {
 			logkit.Field("spend", spend.Seconds()),
 		)
 	}
+	return
+}
+
+// FindPlugin searches for a plugin with the specified ID in the Unit instance.
+// It looks up the plugin in the Unit's plugin map using the provided plugin ID.
+//
+// Parameters:
+//   - pluginID: The unique identifier of the plugin to search for.
+//
+// Returns:
+//   - plugin: The plugin instance if found; otherwise, the zero value of plugin.Plugin.
+//   - found: A boolean indicating whether the plugin was found in the map.
+func (u *Unit) FindPlugin(pluginID string) (plugin plugin.Plugin, found bool) {
+	plugin, found = u.plugins[pluginID]
 	return
 }

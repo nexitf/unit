@@ -20,16 +20,19 @@ var (
 )
 
 type Unit struct {
-	scheduler  *routine.Scheduler
-	exloadeds  map[string]struct{}
-	externals  []*Connector             // Dependent external resources
-	plugins    map[string]plugin.Plugin // Plugins
-	procExited chan os.Signal
-	delayReady time.Duration
-	running    int32 // Already running
-	fatal      error
-	inits      []func(context.Context)
-	defers     []func()
+	runCtx    context.Context
+	scheduler *routine.Scheduler
+	externals []*Connector             // Dependent external resources
+	exloadeds map[string]struct{}      // The external resources that have been loaded
+	plugins   map[string]plugin.Plugin // Plugins
+	// Status
+	running int32 // Already running
+	fatal   error
+	inits   []func(context.Context)
+	defers  []func()
+	// Options
+	delayReady  time.Duration
+	bindTimeout time.Duration
 }
 
 func init() {
@@ -37,13 +40,15 @@ func init() {
 	u.exloadeds = make(map[string]struct{})
 	u.externals = make([]*Connector, 0)
 	u.plugins = make(map[string]plugin.Plugin)
-	u.procExited = make(chan os.Signal, 1)
 }
 
 // Init
 func (u *Unit) init(_ context.Context) (err error) {
 	if u.delayReady <= 0 {
 		u.delayReady = 50 * time.Millisecond
+	}
+	if u.bindTimeout <= 0 {
+		u.bindTimeout = 50 * time.Millisecond
 	}
 	return
 }
@@ -99,8 +104,9 @@ func Use(plugins ...plugin.Plugin) {
 // WaitForExit
 func (u *Unit) WaitForExit(ctx context.Context) (err error) {
 	var (
-		ctxDone = ctx.Done()
-		timer   = utils.NewNeverTriggeringTimer()
+		ctxDone  = ctx.Done()
+		procDone = make(chan os.Signal, 1)
+		timer    = utils.NewNeverTriggeringTimer()
 	)
 
 	defer timer.Stop()
@@ -111,25 +117,24 @@ func (u *Unit) WaitForExit(ctx context.Context) (err error) {
 	interrupt := func(err error) {
 		u.fatal = err
 		u.scheduler.Interrupt(err)
+		timer.Reset(3 * time.Second)
 	}
 
 	// Register the signals to be monitored: interrupt (Ctrl+C) and termination
-	signal.Notify(u.procExited, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(procDone, syscall.SIGINT, syscall.SIGTERM)
 
 	for {
 		select {
 		// Cancel context
 		case <-ctxDone:
 			interrupt(ctx.Err())
-			timer.Reset(3 * time.Second)
 			ctxDone = nil
 		// Delay exited
 		case <-timer.C:
 			return u.fatal
 		// Process exited
-		case signal := <-u.procExited:
-			interrupt(ErrProcessExited)
-			timer.Reset(3 * time.Second)
+		case signal := <-procDone:
+			interrupt(ErrProcessTerminated)
 			logkit.Warn("process exited", logkit.Field("signal", signal.String()))
 		// Unit exited
 		case <-u.scheduler.Done():
@@ -141,20 +146,15 @@ func (u *Unit) WaitForExit(ctx context.Context) (err error) {
 
 // Run
 func (u *Unit) Run(ctx context.Context, routine routine.Routine, opts ...RunOption) (err error) {
+	u.runCtx = ctx
+
 	// Set options
 	for _, setOpt := range opts {
 		setOpt(u)
 	}
 
-	// Load all routines
-	rg, ok := routine.(*RoutineGroup)
-	if !ok {
-		u.scheduler.Add(routine)
-	} else {
-		for _, r := range rg.routines {
-			u.scheduler.Add(r)
-		}
-	}
+	// Load routine
+	u.scheduler.Add(routine)
 
 	// No routine
 	if u.scheduler.Num() <= 0 {

@@ -19,13 +19,13 @@ type RoutineChecker = routine.RoutineChecker
 
 // RoutineGroup implements the Routine interface and is used to set routines in batches.
 // RoutineGroup itself will not be executed as a routine.
-type RoutineGroup = core.RoutineGroup
+type RoutineGroup = routine.Group
 
 // NewRoutineGroup creates a new instance of RoutineGroup.
 // It initializes an empty slice of routines and returns a pointer to the newly created RoutineGroup.
 // This function serves as a convenient way to instantiate a RoutineGroup.
 func NewRoutineGroup() (rg *RoutineGroup) {
-	return core.NewRoutineGroup()
+	return routine.NewGroup()
 }
 
 // Init sets a init function to be executed when the unit inits.

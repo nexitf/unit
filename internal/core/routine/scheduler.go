@@ -152,6 +152,43 @@ func (l *Launcher) reason(err error) {
 	}
 }
 
+// Group implements the Routine interface and is used to set routines in batches.
+// Group itself will not be executed as a routine.
+type Group struct {
+	routines []Routine
+}
+
+// NewGroup creates a new instance of Group.
+// It initializes an empty slice of routines and returns a pointer to the newly created Group.
+// This function serves as a convenient way to instantiate a Group.
+func NewGroup() (g *Group) {
+	return &Group{}
+}
+
+// Name returns the name of the Group.
+// This method implements the corresponding method in the routine.Routine interface,
+// providing a standardized way to identify the Group instance.
+// It always returns the fixed string "NEXITF routine group".
+//
+// Returns:
+// - string: The name of the Group.
+func (g *Group) Name() string {
+	return "NEXITF routine group"
+}
+
+// Add appends a new routine to the Group.
+// It takes a routine that implements the routine.Routine interface as a parameter.
+// The provided routine is then added to the internal slice of routines within the Group.
+// This method modifies the state of the Group by expanding its list of managed routines.
+func (g *Group) Add(routine Routine) {
+	g.routines = append(g.routines, routine)
+}
+
+// Run will never be executed.
+func (g *Group) Run(ctx context.Context) (err error) {
+	return
+}
+
 type Scheduler struct {
 	routines  []*Launcher   // A slice of Launcher instances, each wrapping a Routine.
 	stopped   chan struct{} // A channel that is closed when all routines have exited.
@@ -162,7 +199,7 @@ type Scheduler struct {
 
 // NewScheduler creates a new instance of Scheduler.
 // It initializes the stopped channel to nil, which will be properly initialized when the scheduler starts.
-func NewScheduler() *Scheduler {
+func NewScheduler() (s *Scheduler) {
 	return &Scheduler{stopped: nil}
 }
 
@@ -185,10 +222,16 @@ func (s *Scheduler) Num() int {
 	return len(s.routines)
 }
 
-// Add adds a new Routine to the scheduler.
+// Add adds a routine or group to the scheduler.
 // It wraps the provided Routine in a Launcher and appends it to the list of routines.
 func (s *Scheduler) Add(routine Routine) {
-	s.routines = append(s.routines, &Launcher{routine: routine})
+	if g, ok := routine.(*Group); !ok {
+		s.routines = append(s.routines, &Launcher{routine: routine})
+	} else {
+		for _, r := range g.routines {
+			s.routines = append(s.routines, &Launcher{routine: r})
+		}
+	}
 }
 
 // Start launches all the routines managed by the scheduler.
@@ -220,8 +263,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 		for err := range report {
 			num--
 			if err != nil {
-				s.reason(err)
-				s.cancelCtx()
+				s.Interrupt(err)
 			}
 
 			// When all routines exited
@@ -251,8 +293,7 @@ func (s *Scheduler) Ready(ctx context.Context) {
 				logkit.Field("routine", r.Name()),
 				logkit.Field("spend", spend.Seconds()),
 			)
-			s.reason(err)
-			s.cancelCtx()
+			s.Interrupt(err)
 			return
 		}
 		logkit.Info("routine readiness check successfully",
