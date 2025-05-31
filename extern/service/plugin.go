@@ -44,7 +44,7 @@ type Resource struct {
 }
 
 // PluginID implements plugin.Resource.
-func (res *Resource) PluginID() (string, string) {
+func (res *Resource) PluginID() (pluginID string, pluginName string) {
 	return id, plug.Name()
 }
 
@@ -61,8 +61,18 @@ func (base *Base) Bind(opts ...plugin.BindOption) (unused []plugin.BindOption) {
 	return opts
 }
 
+// Update implements Client.
+func (base *Base) Update(endpoints []Endpoint) (err error) {
+	return
+}
+
+// Close implements Client.
+func (base *Base) Close() (err error) {
+	return
+}
+
 type Client interface {
-	PluginID() (string, string)
+	PluginID() (pluginID string, pluginName string)
 	Init()
 	Bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
 	Update(endpoints []Endpoint) (err error)
@@ -70,7 +80,7 @@ type Client interface {
 }
 
 type client interface {
-	PluginID() (string, string)
+	PluginID() (pluginID string, pluginName string)
 	init()
 	bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
 	update(endpoints []Endpoint) (err error)
@@ -133,9 +143,6 @@ func WithTag(tag string) plugin.BindOption {
 }
 
 // WithDirectAddr binds the client with the direct addresses.
-//
-// Support:
-//   - HTTPClient
 func WithDirectAddr(addrs ...string) plugin.BindOption {
 	return func(varp plugin.Resource) (used bool) {
 		up, used := varp.(*serviceUpdater)
@@ -153,9 +160,6 @@ func WithDirectAddr(addrs ...string) plugin.BindOption {
 }
 
 // WithDirectEndpoint binds the client with the direct endpoints.
-//
-// Support:
-//   - HTTPClient
 func WithDirectEndpoint(endpoints ...Endpoint) plugin.BindOption {
 	return func(varp plugin.Resource) (used bool) {
 		up, used := varp.(*serviceUpdater)

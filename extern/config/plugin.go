@@ -39,7 +39,7 @@ type Resource struct {
 }
 
 // PluginID implements plugin.Resource.
-func (res *Resource) PluginID() (string, string) {
+func (res *Resource) PluginID() (pluginID string, pluginName string) {
 	return id, plug.Name()
 }
 
@@ -47,25 +47,30 @@ type Base struct {
 	Resource
 }
 
-// Init implements Option.
+// Init implements Config.
 func (base *Base) Init() {
 
 }
 
-// Bind implements Option.
+// Bind implements Config.
 func (base *Base) Bind(opts ...plugin.BindOption) (unused []plugin.BindOption) {
 	return opts
 }
 
+// Update implements Config.
+func (base *Base) Update(value string) (err error) {
+	return
+}
+
 type Config interface {
-	PluginID() (string, string)
+	PluginID() (pluginID string, pluginName string)
 	Init()
 	Bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
 	Update(value string) (err error)
 }
 
 type config interface {
-	PluginID() (string, string)
+	PluginID() (pluginID string, pluginName string)
 	init()
 	bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
 	update(value string) (err error)

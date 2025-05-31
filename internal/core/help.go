@@ -8,14 +8,14 @@ import (
 
 type RtRoutine struct {
 	Name     string `json:"Name,omitempty"`
-	RunTime  string `json:"RunTime,omitempty"`
-	StopTime string `json:"StopTime,omitempty"`
+	RunTime  int64  `json:"RunTime,omitempty"`
+	StopTime int64  `json:"StopTime,omitempty"`
 	Time     string `json:"Time,omitempty"`
 	Error    string `json:"Error,omitempty"`
 }
 
 type RtSnapshot struct {
-	Time string `json:"Time"`
+	Time int64  `json:"Time"`
 	Data string `json:"Data"`
 }
 
@@ -66,17 +66,17 @@ func Inspect() (rt Runtime) {
 		}
 		rtm := l.RunTime()
 		if !rtm.IsZero() {
-			v.RunTime = rtm.In(time.Local).Format("2006-01-02 15:04:05.000000")
+			v.RunTime = rtm.UnixMilli()
 		}
 		stm := l.StopTime()
 		if !stm.IsZero() {
-			v.StopTime = stm.In(time.Local).Format("2006-01-02 15:04:05.000000")
+			v.StopTime = stm.UnixMilli()
 		}
-		if !rtm.IsZero() {
-			if stm.IsZero() {
-				v.Time = formatDurationMS(time.Now().UnixMilli() - rtm.UnixMilli())
+		if v.RunTime > 0 {
+			if v.StopTime <= 0 {
+				v.Time = formatDurationMS(time.Now().UnixMilli() - v.RunTime)
 			} else {
-				v.Time = formatDurationMS(stm.UnixMilli() - rtm.UnixMilli())
+				v.Time = formatDurationMS(v.StopTime - v.RunTime)
 			}
 		}
 		if err := l.Err(); err != nil {
@@ -99,7 +99,7 @@ func Inspect() (rt Runtime) {
 		if connector.updater != nil {
 			snap := connector.updater.Snapshot()
 			if !snap.Time.IsZero() {
-				v.Snapshot.Time = snap.Time.In(time.Local).Format("2006-01-02 15:04:05.000000")
+				v.Snapshot.Time = snap.Time.UnixMilli()
 				v.Snapshot.Data = snap.Data
 			}
 		}

@@ -48,12 +48,12 @@ type Resource struct {
 }
 
 // PluginID implements plugin.Resource.
-func (res *Resource) PluginID() (string, string) {
+func (res *Resource) PluginID() (pluginID string, pluginName string) {
 	return id, plug.Name()
 }
 
 type client interface {
-	PluginID() (string, string)
+	PluginID() (pluginID string, pluginName string)
 	init()
 	bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
 	dial(scheme, name string, builder resolver.Builder) (cc *grpc.ClientConn, err error)
