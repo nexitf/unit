@@ -8,6 +8,17 @@ import (
 	"github.com/nexitf/unit/plugin"
 )
 
+// WithDefaultStrings sets the default value of the string slice config.
+func WithDefaultStrings(value []string) plugin.BindOption {
+	return func(varp plugin.Resource) (used bool) {
+		opt, used := varp.(*Strings)
+		if used {
+			opt.value = value
+		}
+		return
+	}
+}
+
 type Strings struct {
 	Resource
 	mutex sync.RWMutex
@@ -46,6 +57,17 @@ func (s *Strings) update(value string) (err error) {
 	}
 	s.value = strings.Split(value, ",")
 	return
+}
+
+// WithDefaultInt64s sets the default value of the int64 slice config.
+func WithDefaultInt64s(value []int64) plugin.BindOption {
+	return func(varp plugin.Resource) (used bool) {
+		opt, used := varp.(*Int64s)
+		if used {
+			opt.value = value
+		}
+		return
+	}
 }
 
 type Int64s struct {

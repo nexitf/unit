@@ -1,8 +1,6 @@
 package service
 
 import (
-	"net"
-
 	"github.com/nexitf/unit/plugin"
 )
 
@@ -11,9 +9,8 @@ type Balancer interface {
 	Update(endpoints []Endpoint) (err error)
 }
 
-type ConnBalancer interface {
-	Pick() (conn net.Conn, found bool)
-	Update(endpoints []Endpoint) (err error)
+type BalancerSetter interface {
+	SetBalancer(b Balancer)
 }
 
 // Inner interface: balancer
@@ -22,22 +19,21 @@ type balancer interface {
 	update(endpoints []Endpoint) (err error)
 }
 
-// Inner interface: connBalancer
-type connBalancer interface {
-	pick() (conn net.Conn, found bool)
-	update(endpoints []Endpoint) (err error)
-}
-
 // WithRoundRobinBalancer binds a RoundRobinBalancer to service.
 //
 // Support:
 //   - HTTPClient
+//   - BalancerSetter
 func WithRoundRobinBalancer() plugin.BindOption {
 	return func(varp plugin.Resource) (used bool) {
 		switch client := varp.(type) {
 		// HTTPClient
 		case *HTTPClient:
 			client.balancer = NewRoundRobinBalancer()
+			return true
+		// BalancerSetter
+		case BalancerSetter:
+			client.SetBalancer(NewRoundRobinBalancer())
 			return true
 		}
 		return
@@ -48,12 +44,17 @@ func WithRoundRobinBalancer() plugin.BindOption {
 //
 // Support:
 //   - HTTPClient
+//   - BalancerSetter
 func WithWeightRoundRobinBalancer() plugin.BindOption {
 	return func(varp plugin.Resource) (used bool) {
 		switch client := varp.(type) {
 		// HTTPClient
 		case *HTTPClient:
 			client.balancer = NewWeightRoundRobinBalancer()
+			return true
+		// BalancerSetter
+		case BalancerSetter:
+			client.SetBalancer(NewWeightRoundRobinBalancer())
 			return true
 		}
 		return

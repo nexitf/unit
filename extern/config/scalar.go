@@ -7,7 +7,7 @@ import (
 	"github.com/nexitf/unit/plugin"
 )
 
-// WithDefaultString sets the default value of the string option.
+// WithDefaultString sets the default value of the string config.
 func WithDefaultString(value string) plugin.BindOption {
 	return func(varp plugin.Resource) (used bool) {
 		opt, used := varp.(*String)
@@ -54,7 +54,7 @@ func (s *String) update(value string) (err error) {
 	return
 }
 
-// WithDefaultInt sets the default value of the int option.
+// WithDefaultInt sets the default value of the int config.
 func WithDefaultInt(value int) plugin.BindOption {
 	return func(varp plugin.Resource) (used bool) {
 		opt, used := varp.(*Int)
@@ -108,7 +108,7 @@ func (i *Int) update(value string) (err error) {
 	return
 }
 
-// WithDefaultInt32 sets the default value of the int32 option.
+// WithDefaultInt32 sets the default value of the int32 config.
 func WithDefaultInt32(value int32) plugin.BindOption {
 	return func(varp plugin.Resource) (used bool) {
 		opt, used := varp.(*Int32)
@@ -162,7 +162,7 @@ func (i *Int32) update(value string) (err error) {
 	return
 }
 
-// WithDefaultUint32 sets the default value of the uint32 option.
+// WithDefaultUint32 sets the default value of the uint32 config.
 func WithDefaultUint32(value uint32) plugin.BindOption {
 	return func(varp plugin.Resource) (used bool) {
 		opt, used := varp.(*Uint32)
@@ -216,7 +216,7 @@ func (u *Uint32) update(value string) (err error) {
 	return
 }
 
-// WithDefaultInt64 sets the default value of the int64 option.
+// WithDefaultInt64 sets the default value of the int64 config.
 func WithDefaultInt64(value int64) plugin.BindOption {
 	return func(varp plugin.Resource) (used bool) {
 		opt, used := varp.(*Int64)
@@ -270,7 +270,7 @@ func (i *Int64) update(value string) (err error) {
 	return
 }
 
-// WithDefaultUint64 sets the default value of the uint64 option.
+// WithDefaultUint64 sets the default value of the uint64 config.
 func WithDefaultUint64(value uint64) plugin.BindOption {
 	return func(varp plugin.Resource) (used bool) {
 		opt, used := varp.(*Uint64)
@@ -324,7 +324,7 @@ func (u *Uint64) update(value string) (err error) {
 	return
 }
 
-// WithDefaultFloat32 sets the default value of the float32 option.
+// WithDefaultFloat32 sets the default value of the float32 config.
 func WithDefaultFloat32(value float32) plugin.BindOption {
 	return func(varp plugin.Resource) (used bool) {
 		opt, used := varp.(*Float32)
@@ -378,7 +378,7 @@ func (f *Float32) update(value string) (err error) {
 	return
 }
 
-// WithDefaultFloat64 sets the default value of the float64 option.
+// WithDefaultFloat64 sets the default value of the float64 config.
 func WithDefaultFloat64(value float64) plugin.BindOption {
 	return func(varp plugin.Resource) (used bool) {
 		opt, used := varp.(*Float64)

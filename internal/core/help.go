@@ -86,28 +86,28 @@ func Inspect() (rt Runtime) {
 	}
 	// External names
 	rt.Externals = make([]RtExternal, 0)
-	for _, connector := range u.externs {
+	for _, binder := range u.externs {
 		v := RtExternal{
-			Path:     connector.String(),
-			Var:      fmt.Sprintf("%p", connector.varp),
-			Type:     connector.type_,
-			Comment:  connector.comment,
-			Filename: connector.pc.Filename(),
-			Line:     connector.pc.Line(),
-			Package:  connector.pc.PackFull(),
+			Path:     binder.String(),
+			Var:      fmt.Sprintf("%p", binder.varp),
+			Type:     binder.type_,
+			Comment:  binder.comment,
+			Filename: binder.pc.Filename(),
+			Line:     binder.pc.Line(),
+			Package:  binder.pc.PackFull(),
 		}
-		if connector.updater != nil {
-			snap := connector.updater.Snapshot()
+		if binder.updater != nil {
+			snap := binder.updater.Snapshot()
 			if !snap.Time.IsZero() {
 				v.Snapshot.Time = snap.Time.UnixMilli()
 				v.Snapshot.Data = snap.Data
 			}
 		}
-		if connector.plugin == nil {
+		if binder.plugin == nil {
 			// The binding may have failed
 			v.Plugin = "???"
 		} else {
-			v.Plugin = connector.plugin.Name()
+			v.Plugin = binder.plugin.Name()
 		}
 		rt.Externals = append(rt.Externals, v)
 	}

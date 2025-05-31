@@ -11,7 +11,7 @@ import (
 	"github.com/thecxx/runpoint"
 )
 
-type Connector struct {
+type Binder struct {
 	name     string
 	type_    string
 	varp     plugin.Resource
@@ -23,23 +23,23 @@ type Connector struct {
 	pc       *runpoint.PCounter
 }
 
-// String returns a string representation of the Connector.
+// String returns a string representation of the Binder.
 // It constructs a URI-like string in the format "plugin://<pluginID>/<name>",
 // where <pluginID> is the ID of the associated plugin and <name> is the name of the external resource.
-// This string can be used for logging, debugging, or identifying the Connector instance.
+// This string can be used for logging, debugging, or identifying the Binder instance.
 //
 // Returns:
-//   - string: A URI-like string representing the Connector.
-func (c Connector) String() string {
-	if c.pluginID != "" {
-		return "plugin://" + c.pluginID + "/" + c.name
+//   - string: A URI-like string representing the Binder.
+func (b Binder) String() string {
+	if b.pluginID != "" {
+		return "plugin://" + b.pluginID + "/" + b.name
 	}
 	// The binding may have failed
-	return "plugin://???/" + c.name
+	return "plugin://???/" + b.name
 }
 
 // LoadExternals loads all external resources associated with the Unit instance.
-// It iterates through each external connector, finds the corresponding plugin,
+// It iterates through each external binder, finds the corresponding plugin,
 // and binds the external resource to the plugin. If any binding operation fails,
 // it logs the error and returns immediately. Otherwise, it logs a success message for each resource.
 //
@@ -52,9 +52,9 @@ func (c Connector) String() string {
 //     Otherwise, returns the error encountered during the process.
 func (u *Unit) LoadExternals(ctx context.Context) (err error) {
 	// Associate external dependency names with the corresponding plugins
-	for _, connector := range u.externs {
+	for _, binder := range u.externs {
 		spend := utils.CallSpend(func() {
-			pluginID, pluginName := connector.varp.PluginID()
+			pluginID, pluginName := binder.varp.PluginID()
 			if pluginID == "" {
 				err = errors.Wrap(ErrPluginNotEnabled, pluginName)
 				return
@@ -65,28 +65,28 @@ func (u *Unit) LoadExternals(ctx context.Context) (err error) {
 				return
 			}
 
-			connector.plugin = plugin
-			connector.pluginID = pluginID
-			if _, ok := u.externlds[connector.String()]; ok {
+			binder.plugin = plugin
+			binder.pluginID = pluginID
+			if _, ok := u.externlds[binder.String()]; ok {
 				err = ErrDuplicateExternalName
 				return
 			}
-			u.externlds[connector.String()] = struct{}{}
+			u.externlds[binder.String()] = struct{}{}
 
+			binder.updater = plugin.NewUpdater()
 			// Bind the variable
-			connector.updater = plugin.NewUpdater()
-			connector.updater.Bind(connector.varp, connector.opts...)
-			err = connector.plugin.Bind(ctx, connector.name, connector.updater)
+			binder.updater.Bind(binder.varp, binder.opts...)
+			err = binder.plugin.Bind(ctx, binder.name, binder.updater)
 		})
 		if err != nil {
 			logkit.ErrorWrap(err, "bind external resource failed",
-				logkit.Field("name", connector.name),
+				logkit.Field("name", binder.name),
 				logkit.Field("spend", spend.Seconds()),
 			)
 			return err
 		}
 		logkit.Info("load external resource successfully",
-			logkit.Field("name", connector.name),
+			logkit.Field("name", binder.name),
 			logkit.Field("spend", spend.Seconds()),
 		)
 	}
@@ -96,7 +96,7 @@ func (u *Unit) LoadExternals(ctx context.Context) (err error) {
 // BindExternal binds a new external resource to the Unit instance.
 // It first validates that the provided variable pointer is valid.
 // If the Unit is already running, it attempts to bind the resource immediately.
-// Finally, it adds the new connector to the list of external resources.
+// Finally, it adds the new binder to the list of external resources.
 //
 // Parameters:
 //   - varp: The external resource to bind, must be a non - nil pointer.
@@ -117,7 +117,7 @@ func (u *Unit) BindExternal(varp plugin.Resource, name, comment string, pc *runp
 
 	refType := reflect.TypeOf(varp).Elem()
 
-	connector := &Connector{
+	binder := &Binder{
 		name:    name,
 		varp:    varp,
 		opts:    opts,
@@ -137,22 +137,21 @@ func (u *Unit) BindExternal(varp plugin.Resource, name, comment string, pc *runp
 			return errors.Wrap(ErrPluginNotFound, pluginName)
 		}
 
-		connector.plugin = plugin
-		connector.pluginID = pluginID
-		if _, ok := u.externlds[connector.String()]; ok {
+		binder.plugin = plugin
+		binder.pluginID = pluginID
+		if _, ok := u.externlds[binder.String()]; ok {
 			return ErrDuplicateExternalName
 		}
 
-		u.externlds[connector.String()] = struct{}{}
-
-		// Bind the variable
-		connector.updater = plugin.NewUpdater()
-		connector.updater.Bind(varp, opts...)
+		u.externlds[binder.String()] = struct{}{}
 
 		ctx, cancelCtx := context.WithTimeout(u.runCtx, u.bindTimeout)
 		defer cancelCtx()
-		// Load now
-		err = connector.plugin.Bind(ctx, name, connector.updater)
+
+		binder.updater = plugin.NewUpdater()
+		// Bind the variable
+		binder.updater.Bind(varp, opts...)
+		err = binder.plugin.Bind(ctx, name, binder.updater)
 		if err != nil {
 			logkit.ErrorWrap(err, "bind external resource failed")
 			return
@@ -160,7 +159,7 @@ func (u *Unit) BindExternal(varp plugin.Resource, name, comment string, pc *runp
 	}
 
 	// Bind a new external resource
-	u.externs = append(u.externs, connector)
+	u.externs = append(u.externs, binder)
 
 	return err
 }

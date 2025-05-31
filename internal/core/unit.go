@@ -16,7 +16,7 @@ import (
 
 var u = Unit{
 	scheduler: routine.NewScheduler(),
-	externs:   make([]*Connector, 0),
+	externs:   make([]*Binder, 0),
 	externlds: make(map[string]struct{}),
 	plugins:   make(map[string]plugin.Plugin),
 }
@@ -24,7 +24,7 @@ var u = Unit{
 type Unit struct {
 	runCtx    context.Context
 	scheduler *routine.Scheduler
-	externs   []*Connector             // Dependent external resources
+	externs   []*Binder                // Dependent external resources
 	externlds map[string]struct{}      // The external resources that have been loaded
 	plugins   map[string]plugin.Plugin // Plugins
 	// Status
