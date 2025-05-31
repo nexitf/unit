@@ -7,6 +7,7 @@ import (
 	"github.com/nexitf/logkit"
 	"github.com/nexitf/unit/internal/core/plugin"
 	"github.com/nexitf/unit/internal/core/utils"
+	"github.com/nexitf/unit/internal/errors"
 	"github.com/thecxx/runpoint"
 )
 
@@ -30,7 +31,11 @@ type Connector struct {
 // Returns:
 //   - string: A URI-like string representing the Connector.
 func (c Connector) String() string {
-	return "plugin://" + c.pluginID + "/" + c.name
+	if c.pluginID != "" {
+		return "plugin://" + c.pluginID + "/" + c.name
+	}
+	// The binding may have failed
+	return "plugin://???/" + c.name
 }
 
 // LoadExternals loads all external resources associated with the Unit instance.
@@ -47,22 +52,26 @@ func (c Connector) String() string {
 //     Otherwise, returns the error encountered during the process.
 func (u *Unit) LoadExternals(ctx context.Context) (err error) {
 	// Associate external dependency names with the corresponding plugins
-	for _, connector := range u.externals {
+	for _, connector := range u.externs {
 		spend := utils.CallSpend(func() {
-			pluginID := connector.varp.PluginID()
+			pluginID, pluginName := connector.varp.PluginID()
+			if pluginID == "" {
+				err = errors.Wrap(ErrPluginNotEnabled, pluginName)
+				return
+			}
 			plugin, found := u.FindPlugin(pluginID)
 			if !found {
-				err = ErrPluginNotFound
+				err = errors.Wrap(ErrPluginNotFound, pluginName)
 				return
 			}
 
 			connector.plugin = plugin
 			connector.pluginID = pluginID
-			if _, ok := u.exloadeds[connector.String()]; ok {
+			if _, ok := u.externlds[connector.String()]; ok {
 				err = ErrDuplicateExternalName
 				return
 			}
-			u.exloadeds[connector.String()] = struct{}{}
+			u.externlds[connector.String()] = struct{}{}
 
 			// Bind the variable
 			connector.updater = plugin.NewUpdater()
@@ -119,20 +128,22 @@ func (u *Unit) BindExternal(varp plugin.Resource, name, comment string, pc *runp
 
 	if u.IsRunning() {
 		// Plugin ID
-		pluginID := varp.PluginID()
-
+		pluginID, pluginName := varp.PluginID()
+		if pluginID == "" {
+			return errors.Wrap(ErrPluginNotEnabled, pluginName)
+		}
 		plugin, found := u.FindPlugin(pluginID)
 		if !found {
-			return ErrPluginNotFound
+			return errors.Wrap(ErrPluginNotFound, pluginName)
 		}
 
 		connector.plugin = plugin
 		connector.pluginID = pluginID
-		if _, ok := u.exloadeds[connector.String()]; ok {
+		if _, ok := u.externlds[connector.String()]; ok {
 			return ErrDuplicateExternalName
 		}
 
-		u.exloadeds[connector.String()] = struct{}{}
+		u.externlds[connector.String()] = struct{}{}
 
 		// Bind the variable
 		connector.updater = plugin.NewUpdater()
@@ -149,7 +160,7 @@ func (u *Unit) BindExternal(varp plugin.Resource, name, comment string, pc *runp
 	}
 
 	// Bind a new external resource
-	u.externals = append(u.externals, connector)
+	u.externs = append(u.externs, connector)
 
 	return err
 }

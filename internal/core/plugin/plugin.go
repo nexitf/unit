@@ -8,8 +8,8 @@ import (
 // Plugin resource-binding types must implement
 // the Resource interface.
 type Resource interface {
-	// PluginID returns the plugin ID.
-	PluginID() string
+	// PluginID returns the plugin ID and name.
+	PluginID() (pluginID string, pluginName string)
 }
 
 type Snapshot struct {
@@ -36,21 +36,23 @@ type About struct {
 
 type Plugin interface {
 
-	// Name
+	// Name returns the name of the plugin.
 	Name() string
 
-	// About
+	// About provides descriptive information about the plugin.
 	About() (about About)
 
-	// Run
+	// Run starts the plugin's execution logic.
+	// The pluginID can be used to identify or configure the plugin instance.
 	Run(ctx context.Context, pluginID string) (err error)
 
-	// Stop
+	// Stop gracefully stops the plugin's execution.
 	Stop(ctx context.Context) (err error)
 
-	// Bind
+	// Bind links a variable or resource to the plugin.
+	// The 'name' specifies what is being bound, and 'updater' handles updates.
 	Bind(ctx context.Context, name string, updater Updater) (err error)
 
-	// NewUpdater creates a new variable updater.
+	// NewUpdater creates and returns a new variable updater instance.
 	NewUpdater() (updater Updater)
 }

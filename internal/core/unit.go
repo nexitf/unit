@@ -14,16 +14,18 @@ import (
 	"github.com/nexitf/unit/internal/core/utils"
 )
 
-var (
-	// Unit instance
-	u Unit
-)
+var u = Unit{
+	scheduler: routine.NewScheduler(),
+	externs:   make([]*Connector, 0),
+	externlds: make(map[string]struct{}),
+	plugins:   make(map[string]plugin.Plugin),
+}
 
 type Unit struct {
 	runCtx    context.Context
 	scheduler *routine.Scheduler
-	externals []*Connector             // Dependent external resources
-	exloadeds map[string]struct{}      // The external resources that have been loaded
+	externs   []*Connector             // Dependent external resources
+	externlds map[string]struct{}      // The external resources that have been loaded
 	plugins   map[string]plugin.Plugin // Plugins
 	// Status
 	running int32 // Already running
@@ -33,13 +35,6 @@ type Unit struct {
 	// Options
 	delayReady  time.Duration
 	bindTimeout time.Duration
-}
-
-func init() {
-	u.scheduler = routine.NewScheduler()
-	u.exloadeds = make(map[string]struct{})
-	u.externals = make([]*Connector, 0)
-	u.plugins = make(map[string]plugin.Plugin)
 }
 
 // Init
@@ -62,19 +57,9 @@ func (u *Unit) Init(fn func(context.Context)) {
 	u.inits = append(u.inits, fn)
 }
 
-// Init sets a init function to be executed when the unit inits.
-func Init(fn func(context.Context)) {
-	u.Init(fn)
-}
-
 // Defer sets a callback function to be executed when the unit exits.
 func (u *Unit) Defer(fn func()) {
 	u.defers = append(u.defers, fn)
-}
-
-// Defer sets a callback function to be executed when the unit exits.
-func Defer(fn func()) {
-	u.Defer(fn)
 }
 
 // Use adds plugin to the Unit instance.
@@ -95,12 +80,6 @@ func (u *Unit) Use(plugins ...plugin.Plugin) {
 	}
 }
 
-// Use adds plugin to the Unit instance.
-// If the unit is already running, it logs an error and panics.
-func Use(plugins ...plugin.Plugin) {
-	u.Use(plugins...)
-}
-
 // WaitForExit
 func (u *Unit) WaitForExit(ctx context.Context) (err error) {
 	var (
@@ -114,8 +93,8 @@ func (u *Unit) WaitForExit(ctx context.Context) (err error) {
 	logkit.Info("wait for exit")
 
 	// Used to interrupt the execution of the routines
-	interrupt := func(err error) {
-		u.fatal = err
+	interrupt := func(e error) {
+		err = e
 		u.scheduler.Interrupt(err)
 		timer.Reset(3 * time.Second)
 	}
@@ -129,17 +108,16 @@ func (u *Unit) WaitForExit(ctx context.Context) (err error) {
 		case <-ctxDone:
 			interrupt(ctx.Err())
 			ctxDone = nil
-		// Delay exited
-		case <-timer.C:
-			return u.fatal
 		// Process exited
 		case signal := <-procDone:
 			interrupt(ErrProcessTerminated)
 			logkit.Warn("process exited", logkit.Field("signal", signal.String()))
 		// Unit exited
 		case <-u.scheduler.Done():
-			u.fatal = u.scheduler.Err()
-			return u.fatal
+			return u.scheduler.Err()
+		// Delay exited
+		case <-timer.C:
+			return err
 		}
 	}
 }
@@ -152,6 +130,12 @@ func (u *Unit) Run(ctx context.Context, routine routine.Routine, opts ...RunOpti
 	for _, setOpt := range opts {
 		setOpt(u)
 	}
+
+	defer func() {
+		if err != nil {
+			u.fatal = err
+		}
+	}()
 
 	// Load routine
 	u.scheduler.Add(routine)
@@ -175,7 +159,7 @@ func (u *Unit) Run(ctx context.Context, routine routine.Routine, opts ...RunOpti
 
 	// Init unit
 	if err = u.init(ctx); err != nil {
-		logkit.ErrorWrap(err, "no routine found")
+		logkit.ErrorWrap(err, "unit init failed")
 		return
 	}
 
@@ -224,7 +208,31 @@ func (u *Unit) Run(ctx context.Context, routine routine.Routine, opts ...RunOpti
 	return u.WaitForExit(ctx)
 }
 
-// Run
+// Init sets a init function to be executed when the unit inits.
+func Init(fn func(context.Context)) {
+	u.Init(fn)
+}
+
+// Defer sets a callback function to be executed when the unit exits.
+func Defer(fn func()) {
+	u.Defer(fn)
+}
+
+// Use adds plugin to the Unit instance.
+// If the unit is already running, it logs an error and panics.
+func Use(plugins ...plugin.Plugin) {
+	u.Use(plugins...)
+}
+
+// Run starts and runs a specified routine.
+//
+// Parameters:
+//   - ctx is a context object used to control the lifecycle of the routine, which can be used for cancellation or timeout control.
+//   - routine is the routine instance to be run, which must implement the routine.Routine interface.
+//   - opts are optional running options used to configure the running behavior of the routine.
+//
+// Returns
+//   - The return value err represents any errors that may occur during the running process.
 func Run(ctx context.Context, routine routine.Routine, opts ...RunOption) (err error) {
 	if u.IsRunning() {
 		logkit.PanicWrap(ErrAlreadyRunning, "unit already running")

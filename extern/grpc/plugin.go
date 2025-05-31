@@ -48,12 +48,12 @@ type Resource struct {
 }
 
 // PluginID implements plugin.Resource.
-func (res *Resource) PluginID() string {
-	return id
+func (res *Resource) PluginID() (string, string) {
+	return id, plug.Name()
 }
 
 type client interface {
-	PluginID() string
+	PluginID() (string, string)
 	init()
 	bind(opts ...plugin.BindOption) (unused []plugin.BindOption)
 	dial(scheme, name string, builder resolver.Builder) (cc *grpc.ClientConn, err error)
@@ -152,7 +152,8 @@ type serviceUpdater struct {
 
 // Bind implements plugin.Updater.
 func (up *serviceUpdater) Bind(varp plugin.Resource, opts ...plugin.BindOption) {
-	if varp.PluginID() != id {
+	pluginID, _ := varp.PluginID()
+	if pluginID != id {
 		panic(ErrUnrecognizedVariableType)
 	}
 	// Init updater

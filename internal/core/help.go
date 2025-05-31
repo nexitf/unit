@@ -8,8 +8,8 @@ import (
 
 type RtRoutine struct {
 	Name     string `json:"Name,omitempty"`
-	RunTime  int64  `json:"RunTime,omitempty"`
-	StopTime int64  `json:"StopTime,omitempty"`
+	RunTime  string `json:"RunTime,omitempty"`
+	StopTime string `json:"StopTime,omitempty"`
 	Time     string `json:"Time,omitempty"`
 	Error    string `json:"Error,omitempty"`
 }
@@ -21,6 +21,7 @@ type RtSnapshot struct {
 
 type RtExternal struct {
 	Path     string     `json:"Path,omitempty"`
+	Plugin   string     `json:"Plugin,omitempty"`
 	Var      string     `json:"Var,omitempty"`
 	Snapshot RtSnapshot `json:"Snapshot,omitempty"`
 	Type     string     `json:"Type,omitempty"`
@@ -63,17 +64,19 @@ func Inspect() (rt Runtime) {
 		v := RtRoutine{
 			Name: l.Name(),
 		}
-		if rt := l.RunTime(); !rt.IsZero() {
-			v.RunTime = rt.UnixMilli()
+		rtm := l.RunTime()
+		if !rtm.IsZero() {
+			v.RunTime = rtm.In(time.Local).Format("2006-01-02 15:04:05.000000")
 		}
-		if st := l.StopTime(); !st.IsZero() {
-			v.StopTime = st.UnixMilli()
+		stm := l.StopTime()
+		if !stm.IsZero() {
+			v.StopTime = stm.In(time.Local).Format("2006-01-02 15:04:05.000000")
 		}
-		if v.RunTime > 0 {
-			if v.StopTime <= 0 {
-				v.Time = formatDurationMS(time.Now().UnixMilli() - v.RunTime)
+		if !rtm.IsZero() {
+			if stm.IsZero() {
+				v.Time = formatDurationMS(time.Now().UnixMilli() - rtm.UnixMilli())
 			} else {
-				v.Time = formatDurationMS(v.StopTime - v.RunTime)
+				v.Time = formatDurationMS(stm.UnixMilli() - rtm.UnixMilli())
 			}
 		}
 		if err := l.Err(); err != nil {
@@ -83,7 +86,7 @@ func Inspect() (rt Runtime) {
 	}
 	// External names
 	rt.Externals = make([]RtExternal, 0)
-	for _, connector := range u.externals {
+	for _, connector := range u.externs {
 		v := RtExternal{
 			Path:     connector.String(),
 			Var:      fmt.Sprintf("%p", connector.varp),
@@ -99,6 +102,12 @@ func Inspect() (rt Runtime) {
 				v.Snapshot.Time = snap.Time.In(time.Local).Format("2006-01-02 15:04:05.000000")
 				v.Snapshot.Data = snap.Data
 			}
+		}
+		if connector.plugin == nil {
+			// The binding may have failed
+			v.Plugin = "???"
+		} else {
+			v.Plugin = connector.plugin.Name()
 		}
 		rt.Externals = append(rt.Externals, v)
 	}
