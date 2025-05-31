@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/nexitf/unit/plugin"
+	"github.com/nexitf/unit/internal/core/plugin"
 )
 
 type Balancer interface {

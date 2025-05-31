@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/nexitf/logkit"
+	"github.com/nexitf/unit/internal/core/plugin"
 	"github.com/nexitf/unit/internal/core/utils"
-	"github.com/nexitf/unit/plugin"
 )
 
 // RunPlugins sequentially executes the Run method of all plugins in the Unit instance.

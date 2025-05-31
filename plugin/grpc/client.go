@@ -4,7 +4,7 @@ import (
 	"context"
 	"net"
 
-	"github.com/nexitf/unit/plugin"
+	"github.com/nexitf/unit/internal/core/plugin"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/balancer/weightedroundrobin"

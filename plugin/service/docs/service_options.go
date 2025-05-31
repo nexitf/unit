@@ -4,8 +4,8 @@
 package your_package_name
 
 import (
-	"github.com/nexitf/unit/extern/service"
 	"github.com/nexitf/unit/plugin"
+	"github.com/nexitf/unit/plugin/service"
 )
 
 // WithVariableReady binds a ready callback function to all services.

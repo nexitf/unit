@@ -2,7 +2,7 @@ package extern
 
 import (
 	"github.com/nexitf/unit/internal/core"
-	"github.com/nexitf/unit/plugin"
+	"github.com/nexitf/unit/internal/core/plugin"
 	"github.com/thecxx/runpoint"
 )
 

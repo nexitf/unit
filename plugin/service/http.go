@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/gojek/heimdall/v7/httpclient"
+	"github.com/nexitf/unit/internal/core/plugin"
 	"github.com/nexitf/unit/internal/errors"
-	"github.com/nexitf/unit/plugin"
 )
 
 var (

@@ -9,15 +9,15 @@ import (
 	"github.com/nexitf/logkit"
 	"github.com/nexitf/unit/analytics/stats"
 	"github.com/nexitf/unit/discovery"
+	"github.com/nexitf/unit/internal/core/plugin"
 	"github.com/nexitf/unit/internal/errors"
-	"github.com/nexitf/unit/plugin"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/attributes"
 	"google.golang.org/grpc/resolver"
 )
 
 var (
-	ErrPluginNotInited          = errors.New("plugin not inited, see 'github.com/nexitf/unit/extern/grpc.Init()'")
+	ErrPluginNotInited          = errors.New("plugin not inited")
 	ErrInvalidUpdater           = errors.New("invalid updater")
 	ErrUnrecognizedVariableType = errors.New("unrecognized variable type")
 	ErrUnrecognizedBindOption   = errors.New("unrecognized bind option")

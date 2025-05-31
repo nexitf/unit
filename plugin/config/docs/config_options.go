@@ -4,8 +4,8 @@
 package your_package_name
 
 import (
-	"github.com/nexitf/unit/extern/config"
 	"github.com/nexitf/unit/plugin"
+	"github.com/nexitf/unit/plugin/config"
 )
 
 // WithVariableReady binds a ready function to all configurations.

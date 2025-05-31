@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/nexitf/unit/plugin"
+	"github.com/nexitf/unit/internal/core/plugin"
 )
 
 // WithDefaultString sets the default value of the string config.
