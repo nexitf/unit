@@ -6,7 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nexitf/logkit"
+	"github.com/nexitf/logger"
+	"github.com/nexitf/logger/field"
 	"github.com/nexitf/unit/analytics/stats"
 	"github.com/nexitf/unit/discovery"
 	"github.com/nexitf/unit/internal/core/plugin"
@@ -246,13 +247,13 @@ func (up *serviceUpdater) stop() {
 		spend := stats.CallSpend(func() {
 			up.closeFn()
 		})
-		logkit.Info("client close", logkit.Field("spend", spend.Seconds()))
+		logger.Info("client close", field.Value("spend", spend.Seconds()))
 	}
 	if up.cancelFn != nil {
 		spend := stats.CallSpend(func() {
 			up.cancelFn()
 		})
-		logkit.Info("watcher cancel", logkit.Field("spend", spend.Seconds()))
+		logger.Info("watcher cancel", field.Value("spend", spend.Seconds()))
 	}
 }
 
@@ -320,9 +321,9 @@ func (plug *servicePlugin) Stop(ctx context.Context) (err error) {
 		spend := stats.CallSpend(func() {
 			up.stop()
 		})
-		logkit.Info("updater stop successfully",
-			logkit.Field("name", name),
-			logkit.Field("spend", spend.Seconds()),
+		logger.Info("updater stop successfully",
+			field.Value("name", name),
+			field.Value("spend", spend.Seconds()),
 		)
 	}
 	return

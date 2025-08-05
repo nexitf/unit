@@ -21,10 +21,10 @@ type RoutineChecker = routine.RoutineChecker
 // RoutineGroup itself will not be executed as a routine.
 type RoutineGroup = routine.Group
 
-// NewRoutineGroup creates a new instance of RoutineGroup.
+// Group creates a new instance of RoutineGroup.
 // It initializes an empty slice of routines and returns a pointer to the newly created RoutineGroup.
 // This function serves as a convenient way to instantiate a RoutineGroup.
-func NewRoutineGroup() (rg *RoutineGroup) {
+func Group() (rg *RoutineGroup) {
 	return routine.NewGroup()
 }
 

@@ -5,7 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nexitf/logkit"
+	"github.com/nexitf/logger"
+	"github.com/nexitf/logger/field"
 	"github.com/nexitf/unit/analytics/stats"
 	"github.com/nexitf/unit/internal/core/utils"
 )
@@ -41,14 +42,15 @@ func (l *Launcher) Start(ctx context.Context, started *sync.WaitGroup, report ch
 			err = l.Run(ctx)
 		})
 		if err != nil {
-			logkit.ErrorWrap(err, "routine run failed",
-				logkit.Field("routine", l.Name()),
-				logkit.Field("spend", spend.Seconds()),
+			logger.Error("routine run failed",
+				field.Error(err),
+				field.Value("routine", l.Name()),
+				field.Value("spend", spend.Seconds()),
 			)
 		} else {
-			logkit.Info("routine run successfully",
-				logkit.Field("routine", l.Name()),
-				logkit.Field("spend", spend.Seconds()),
+			logger.Info("routine run successfully",
+				field.Value("routine", l.Name()),
+				field.Value("spend", spend.Seconds()),
 			)
 			l.Stop(ctx)
 		}
@@ -289,16 +291,17 @@ func (s *Scheduler) Ready(ctx context.Context) {
 			err = r.Ready(ctx)
 		})
 		if err != nil {
-			logkit.ErrorWrap(err, "routine readiness check failed",
-				logkit.Field("routine", r.Name()),
-				logkit.Field("spend", spend.Seconds()),
+			logger.Error("routine readiness check failed",
+				field.Error(err),
+				field.Value("routine", r.Name()),
+				field.Value("spend", spend.Seconds()),
 			)
 			s.Interrupt(err)
 			return
 		}
-		logkit.Info("routine readiness check successfully",
-			logkit.Field("routine", r.Name()),
-			logkit.Field("spend", spend.Seconds()),
+		logger.Info("routine readiness check successfully",
+			field.Value("routine", r.Name()),
+			field.Value("spend", spend.Seconds()),
 		)
 	}
 }

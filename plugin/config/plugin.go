@@ -7,7 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nexitf/logkit"
+	"github.com/nexitf/logger"
+	"github.com/nexitf/logger/field"
 	"github.com/nexitf/unit/analytics/stats"
 	"github.com/nexitf/unit/internal/core/plugin"
 	"github.com/nexitf/unit/internal/errors"
@@ -272,9 +273,9 @@ func (plug *configPlugin) Stop(ctx context.Context) (err error) {
 		spend := stats.CallSpend(func() {
 			up.stop()
 		})
-		logkit.Info("updater stop successfully",
-			logkit.Field("name", name),
-			logkit.Field("spend", spend.Seconds()),
+		logger.Info("updater stop successfully",
+			field.Value("name", name),
+			field.Value("spend", spend.Seconds()),
 		)
 	}
 	return

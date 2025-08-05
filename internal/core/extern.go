@@ -4,7 +4,8 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/nexitf/logkit"
+	"github.com/nexitf/logger"
+	"github.com/nexitf/logger/field"
 	"github.com/nexitf/unit/internal/core/plugin"
 	"github.com/nexitf/unit/internal/core/utils"
 	"github.com/nexitf/unit/internal/errors"
@@ -79,15 +80,16 @@ func (u *Unit) LoadExternals(ctx context.Context) (err error) {
 			err = binder.plugin.Bind(ctx, binder.name, binder.updater)
 		})
 		if err != nil {
-			logkit.ErrorWrap(err, "bind external resource failed",
-				logkit.Field("name", binder.name),
-				logkit.Field("spend", spend.Seconds()),
+			logger.Error("bind external resource failed",
+				field.Error(err),
+				field.Value("name", binder.name),
+				field.Value("spend", spend.Seconds()),
 			)
 			return err
 		}
-		logkit.Info("load external resource successfully",
-			logkit.Field("name", binder.name),
-			logkit.Field("spend", spend.Seconds()),
+		logger.Info("load external resource successfully",
+			field.Value("name", binder.name),
+			field.Value("spend", spend.Seconds()),
 		)
 	}
 	return
@@ -111,7 +113,7 @@ func (u *Unit) LoadExternals(ctx context.Context) (err error) {
 func (u *Unit) BindExternal(varp plugin.Resource, name, comment string, pc *runpoint.PCounter, opts ...plugin.BindOption) (err error) {
 	refVal := reflect.ValueOf(varp)
 	if refVal.Kind() != reflect.Ptr || refVal.IsNil() {
-		logkit.PanicWrap(ErrInvalidVariablePointer, "varp must be a pointer")
+		logger.Panic("varp must be a pointer", field.Error(ErrInvalidVariablePointer))
 		panic(ErrInvalidVariablePointer)
 	}
 
@@ -153,7 +155,7 @@ func (u *Unit) BindExternal(varp plugin.Resource, name, comment string, pc *runp
 		binder.updater.Bind(varp, opts...)
 		err = binder.plugin.Bind(ctx, name, binder.updater)
 		if err != nil {
-			logkit.ErrorWrap(err, "bind external resource failed")
+			logger.Error("bind external resource failed", field.Error(err))
 			return
 		}
 	}

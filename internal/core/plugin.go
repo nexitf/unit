@@ -3,7 +3,8 @@ package core
 import (
 	"context"
 
-	"github.com/nexitf/logkit"
+	"github.com/nexitf/logger"
+	"github.com/nexitf/logger/field"
 	"github.com/nexitf/unit/internal/core/plugin"
 	"github.com/nexitf/unit/internal/core/utils"
 )
@@ -24,15 +25,16 @@ func (u *Unit) RunPlugins(ctx context.Context) (err error) {
 			err = plugin.Run(ctx, pluginID)
 		})
 		if err != nil {
-			logkit.ErrorWrap(err, "plugin run failed",
-				logkit.Field("plugin", plugin.Name()),
-				logkit.Field("spend", spend.Seconds()),
+			logger.Error("plugin run failed",
+				field.Error(err),
+				field.Value("plugin", plugin.Name()),
+				field.Value("spend", spend.Seconds()),
 			)
 			return
 		}
-		logkit.Info("plugin run successfully",
-			logkit.Field("plugin", plugin.Name()),
-			logkit.Field("spend", spend.Seconds()),
+		logger.Info("plugin run successfully",
+			field.Value("plugin", plugin.Name()),
+			field.Value("spend", spend.Seconds()),
 		)
 	}
 	return
@@ -54,15 +56,16 @@ func (u *Unit) StopPlugins(ctx context.Context) (err error) {
 			err = plugin.Stop(ctx)
 		})
 		if err != nil {
-			logkit.ErrorWrap(err, "plugin stop failed",
-				logkit.Field("plugin", plugin.Name()),
-				logkit.Field("spend", spend.Seconds()),
+			logger.Error("plugin stop failed",
+				field.Error(err),
+				field.Value("plugin", plugin.Name()),
+				field.Value("spend", spend.Seconds()),
 			)
 			return
 		}
-		logkit.Info("plugin stop successfully",
-			logkit.Field("plugin", plugin.Name()),
-			logkit.Field("spend", spend.Seconds()),
+		logger.Info("plugin stop successfully",
+			field.Value("plugin", plugin.Name()),
+			field.Value("spend", spend.Seconds()),
 		)
 	}
 	return

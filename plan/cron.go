@@ -4,7 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/nexitf/logkit"
+	"github.com/nexitf/logger"
+	"github.com/nexitf/logger/field"
 	cron "github.com/robfig/cron/v3"
 	"go.uber.org/multierr"
 )
@@ -31,7 +32,7 @@ type CronRoutine struct {
 func NewCronRoutine(opts ...CronOption) (r *CronRoutine) {
 	// Set logger option
 	opts = append(opts,
-		cron.WithLogger(&logger{}),
+		cron.WithLogger(&cronLogger{}),
 	)
 	r = &CronRoutine{
 		cron: cron.New(opts...),
@@ -68,23 +69,23 @@ func (r *CronRoutine) Stop(ctx context.Context) (err error) {
 	return
 }
 
-type logger struct{}
+type cronLogger struct{}
 
 // Info implements cron.Logger.
-func (l *logger) Info(msg string, keysAndValues ...interface{}) {
-	logkit.Info(msg, l.formatFields(keysAndValues...)...)
+func (l *cronLogger) Info(msg string, keysAndValues ...any) {
+	logger.Info(msg, l.formatFields(keysAndValues...)...)
 }
 
 // Error implements cron.Logger.
-func (l *logger) Error(err error, msg string, keysAndValues ...interface{}) {
-	logkit.ErrorWrap(err, msg, l.formatFields(keysAndValues...)...)
+func (l *cronLogger) Error(err error, msg string, keysAndValues ...any) {
+	logger.Error(msg, append([]logger.FieldOption{field.Error(err)}, l.formatFields(keysAndValues...)...)...)
 }
 
 // formatFields
-func (l *logger) formatFields(keysAndValues ...interface{}) (fields []logkit.FieldOption) {
+func (l *cronLogger) formatFields(keysAndValues ...any) (fields []logger.FieldOption) {
 	for i := 0; i < len(keysAndValues); i += 2 {
 		if key, ok := keysAndValues[i].(string); ok {
-			fields = append(fields, logkit.Field(key, keysAndValues[i+1]))
+			fields = append(fields, field.Value(key, keysAndValues[i+1]))
 		}
 	}
 	return

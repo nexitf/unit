@@ -8,7 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nexitf/logkit"
+	"github.com/nexitf/logger"
+	"github.com/nexitf/logger/field"
 	"github.com/nexitf/unit/internal/core/plugin"
 	"github.com/nexitf/unit/internal/core/routine"
 	"github.com/nexitf/unit/internal/core/utils"
@@ -51,7 +52,7 @@ func (u *Unit) init(_ context.Context) (err error) {
 // Init sets a init function to be executed when the unit inits.
 func (u *Unit) Init(fn func(context.Context)) {
 	if u.IsRunning() {
-		logkit.PanicWrap(ErrAlreadyRunning, "unit already running")
+		logger.Panic("unit already running", field.Error(ErrAlreadyRunning))
 		panic(ErrAlreadyRunning)
 	}
 	u.inits = append(u.inits, fn)
@@ -66,17 +67,17 @@ func (u *Unit) Defer(fn func()) {
 // If the unit is already running, it logs an error and panics.
 func (u *Unit) Use(plugins ...plugin.Plugin) {
 	if u.IsRunning() {
-		logkit.PanicWrap(ErrAlreadyRunning, "unit already running")
+		logger.Panic("unit already running", field.Error(ErrAlreadyRunning))
 		panic(ErrAlreadyRunning)
 	}
 	for _, plugin := range plugins {
 		pluginID, err := utils.RandomString(32)
 		if err != nil {
-			logkit.PanicWrap(err, "plugin ID generation failed")
+			logger.Panic("plugin ID generation failed", field.Error(err))
 			panic(err)
 		}
 		u.plugins[pluginID] = plugin
-		logkit.Info("enable plugin", logkit.Field("plugin", plugin.Name()))
+		logger.Info("enable plugin", field.Value("plugin", plugin.Name()))
 	}
 }
 
@@ -90,7 +91,7 @@ func (u *Unit) WaitForExit(ctx context.Context) (err error) {
 
 	defer timer.Stop()
 
-	logkit.Info("wait for exit")
+	logger.Info("wait for exit")
 
 	// Used to interrupt the execution of the routines
 	interrupt := func(e error) {
@@ -111,7 +112,7 @@ func (u *Unit) WaitForExit(ctx context.Context) (err error) {
 		// Process exited
 		case signal := <-procDone:
 			interrupt(ErrProcessTerminated)
-			logkit.Warn("process exited", logkit.Field("signal", signal.String()))
+			logger.Warn("process exited", field.Value("signal", signal.String()))
 		// Unit exited
 		case <-u.scheduler.Done():
 			return u.scheduler.Err()
@@ -142,37 +143,37 @@ func (u *Unit) Run(ctx context.Context, routine routine.Routine, opts ...RunOpti
 
 	// No routine
 	if u.scheduler.Num() <= 0 {
-		logkit.Warn("no routine found")
+		logger.Warn("no routine found")
 		return
 	}
 
 	atomic.StoreInt32(&u.running, 1)
 	defer atomic.StoreInt32(&u.running, 0)
 
-	logkit.Info("unit running")
+	logger.Info("unit running")
 	defer func() {
 		if err != nil {
-			logkit.ErrorWrap(err, "unit run failed")
+			logger.Error("unit run failed", field.Error(err))
 		}
-		logkit.Info("unit exited")
+		logger.Info("unit exited")
 	}()
 
 	// Init unit
 	if err = u.init(ctx); err != nil {
-		logkit.ErrorWrap(err, "unit init failed")
+		logger.Error("unit init failed", field.Error(err))
 		return
 	}
 
 	// Run plugin
 	if err = u.RunPlugins(ctx); err != nil {
-		logkit.ErrorWrap(err, "run plugins failed")
+		logger.Error("run plugins failed", field.Error(err))
 		return
 	}
 	defer u.StopPlugins(ctx)
 
 	// Load dependent external resources
 	if err = u.LoadExternals(ctx); err != nil {
-		logkit.ErrorWrap(err, "load external resources failed")
+		logger.Error("load external resources failed", field.Error(err))
 		return
 	}
 
@@ -183,7 +184,7 @@ func (u *Unit) Run(ctx context.Context, routine routine.Routine, opts ...RunOpti
 
 	// Start routines
 	u.scheduler.Start(ctx)
-	logkit.Info("all routines started successfully")
+	logger.Info("all routines started successfully")
 
 	readyFn := func() {
 		u.scheduler.Ready(ctx)
@@ -235,7 +236,7 @@ func Use(plugins ...plugin.Plugin) {
 //   - The return value err represents any errors that may occur during the running process.
 func Run(ctx context.Context, routine routine.Routine, opts ...RunOption) (err error) {
 	if u.IsRunning() {
-		logkit.PanicWrap(ErrAlreadyRunning, "unit already running")
+		logger.Panic("unit already running", field.Error(ErrAlreadyRunning))
 		panic(ErrAlreadyRunning)
 	}
 	return u.Run(ctx, routine, opts...)
